@@ -14,8 +14,8 @@ from urllib.parse import urlencode, urlparse, parse_qs
 import requests
 
 REDIRECT_URI = "http://127.0.0.1:8766/callback"
-AUTH_URL = "https://auth.mycase.com/oauth/authorize"
-TOKEN_URL = "https://auth.mycase.com/oauth/token"
+AUTH_URL = "https://auth.mycase.com/login_sessions/new"
+TOKEN_URL = "https://auth.mycase.com/tokens"
 CONFIG_DIR = Path.home() / ".mycase-mcp"
 
 _auth_code: str | None = None

@@ -110,10 +110,14 @@ def add_staff_to_case(case_id: int, staff_id: int) -> str:
 # ── Clients ───────────────────────────────────────────────────────────────────
 
 @mcp.tool()
-def list_clients(query: str = "", page_size: int = 25) -> str:
-    """List clients, optionally filtered by name/email search query."""
+def list_clients(email: str = "", first_name: str = "", last_name: str = "",
+                 cell_phone_number: str = "", updated_after: str = "",
+                 page_size: int = 25) -> str:
+    """List clients. Filter by email, first_name, last_name, cell_phone_number, or updated_after (ISO 8601)."""
     return json.dumps(MyCaseClient().list_clients(
-        query=query or None, page_size=page_size), indent=2)
+        email=email or None, first_name=first_name or None, last_name=last_name or None,
+        cell_phone_number=cell_phone_number or None, updated_after=updated_after or None,
+        page_size=page_size), indent=2)
 
 
 @mcp.tool()
@@ -168,10 +172,12 @@ def list_client_message_threads(client_id: int, page_size: int = 25) -> str:
 # ── Companies ─────────────────────────────────────────────────────────────────
 
 @mcp.tool()
-def list_companies(query: str = "", page_size: int = 25) -> str:
-    """List companies, optionally filtered by name search query."""
+def list_companies(name: str = "", email: str = "", updated_after: str = "",
+                   page_size: int = 25) -> str:
+    """List companies. Filter by name, email, or updated_after (ISO 8601)."""
     return json.dumps(MyCaseClient().list_companies(
-        query=query or None, page_size=page_size), indent=2)
+        name=name or None, email=email or None, updated_after=updated_after or None,
+        page_size=page_size), indent=2)
 
 
 @mcp.tool()
@@ -220,12 +226,10 @@ def add_client_to_company(company_id: int, client_id: int) -> str:
 # ── Tasks ─────────────────────────────────────────────────────────────────────
 
 @mcp.tool()
-def list_tasks(case_id: int = 0, assignee_id: int = 0,
-               status: str = "", page_size: int = 25) -> str:
-    """List tasks. Filter by case_id, assignee_id, or status (open | completed)."""
+def list_tasks(updated_after: str = "", page_size: int = 25) -> str:
+    """List tasks. updated_after: ISO 8601 datetime to filter recently changed tasks."""
     return json.dumps(MyCaseClient().list_tasks(
-        case_id=case_id or None, assignee_id=assignee_id or None,
-        status=status or None, page_size=page_size), indent=2)
+        updated_after=updated_after or None, page_size=page_size), indent=2)
 
 
 @mcp.tool()
@@ -239,15 +243,15 @@ def create_task(name: str, priority: str, due_date: str, staff_id: int,
 
 @mcp.tool()
 def update_task(task_id: int, name: str = "", due_date: str = "",
-                status: str = "", priority: str = "") -> str:
-    """Update a task. status: open | completed. priority: Low | Medium | High."""
+                completed: bool | None = None, priority: str = "") -> str:
+    """Update a task. completed: true to mark done. priority: Low | Medium | High."""
     fields = {}
     if name:
         fields["name"] = name
     if due_date:
         fields["due_date"] = due_date
-    if status:
-        fields["status"] = status
+    if completed is not None:
+        fields["completed"] = completed
     if priority:
         fields["priority"] = priority
     return json.dumps(MyCaseClient().update_task(task_id, **fields), indent=2)
@@ -277,12 +281,12 @@ def list_events(case_id: int = 0, start_date: str = "",
 
 
 @mcp.tool()
-def create_event(name: str, start: str, end: str, case_id: int = 0,
-                 location: str = "", description: str = "") -> str:
-    """Create a calendar event. start/end: ISO 8601 datetime strings."""
+def create_event(name: str, start: str, end: str, staff_id: int,
+                 case_id: int = 0, location_id: int = 0, description: str = "") -> str:
+    """Create a calendar event. start/end: ISO 8601. staff_id is required. location_id: ID of a Location record."""
     return json.dumps(MyCaseClient().create_event(
-        name=name, start=start, end=end,
-        case_id=case_id or None, location=location or None,
+        name=name, start=start, end=end, staff_id=staff_id,
+        case_id=case_id or None, location_id=location_id or None,
         description=description or None), indent=2)
 
 
@@ -317,10 +321,10 @@ def add_staff_to_event(event_id: int, staff_id: int) -> str:
 # ── Time Entries ──────────────────────────────────────────────────────────────
 
 @mcp.tool()
-def list_time_entries(case_id: int = 0, staff_id: int = 0, page_size: int = 25) -> str:
-    """List time entries, optionally filtered by case or staff member."""
+def list_time_entries(updated_after: str = "", page_size: int = 25) -> str:
+    """List time entries. updated_after: ISO 8601 datetime to filter by last update."""
     return json.dumps(MyCaseClient().list_time_entries(
-        case_id=case_id or None, staff_id=staff_id or None, page_size=page_size), indent=2)
+        updated_after=updated_after or None, page_size=page_size), indent=2)
 
 
 @mcp.tool()
@@ -485,10 +489,9 @@ def list_all_document_versions() -> str:
 
 
 @mcp.tool()
-def upload_document_version(doc_id: int, path: str, filename: str = "") -> str:
-    """Upload a new version of an existing document."""
-    return json.dumps(MyCaseClient().upload_document_version(
-        doc_id, path=path, filename=filename or None), indent=2)
+def upload_document_version(doc_id: int) -> str:
+    """Initiate a new version upload for an existing document. Returns upload instructions."""
+    return json.dumps(MyCaseClient().upload_document_version(doc_id), indent=2)
 
 
 @mcp.tool()
@@ -757,10 +760,10 @@ def delete_custom_field_option(field_id: int, key: str) -> str:
 # ── Expenses ──────────────────────────────────────────────────────────────────
 
 @mcp.tool()
-def list_expenses(case_id: int = 0, staff_id: int = 0, page_size: int = 25) -> str:
-    """List expense entries, optionally filtered by case or staff."""
+def list_expenses(updated_after: str = "", page_size: int = 25) -> str:
+    """List expense entries. updated_after: ISO 8601 datetime to filter by last update."""
     return json.dumps(MyCaseClient().list_expenses(
-        case_id=case_id or None, staff_id=staff_id or None, page_size=page_size), indent=2)
+        updated_after=updated_after or None, page_size=page_size), indent=2)
 
 
 @mcp.tool()
@@ -798,12 +801,13 @@ def list_calls(page_size: int = 25, updated_after: str = "") -> str:
 
 @mcp.tool()
 def create_call(called_at: str, caller_name: str = "", caller_phone_number: str = "",
-                call_for: str = "", message: str = "", client_id: int = 0,
+                call_for_staff_id: int = 0, message: str = "", client_id: int = 0,
                 lead_id: int = 0, call_type: str = "", resolved: bool = False) -> str:
-    """Log a call. called_at: ISO 8601. call_type: inbound | outbound."""
+    """Log a call. called_at: ISO 8601. call_type: inbound | outbound. call_for_staff_id: staff member the call is for."""
     return json.dumps(MyCaseClient().create_call(
         called_at=called_at, caller_name=caller_name or None,
-        caller_phone_number=caller_phone_number or None, call_for=call_for or None,
+        caller_phone_number=caller_phone_number or None,
+        call_for_staff_id=call_for_staff_id or None,
         message=message or None, client_id=client_id or None,
         lead_id=lead_id or None, call_type=call_type or None,
         resolved=resolved), indent=2)

@@ -10,8 +10,8 @@ from pathlib import Path
 from datetime import datetime, timezone
 
 BASE_URL = "https://external-integrations.mycase.com/v1"
-AUTH_URL = "https://auth.mycase.com/oauth/authorize"
-TOKEN_URL = "https://auth.mycase.com/oauth/token"
+AUTH_URL = "https://auth.mycase.com/login_sessions/new"
+TOKEN_URL = "https://auth.mycase.com/tokens"
 CONFIG_DIR = Path.home() / ".mycase-mcp"
 
 
@@ -89,7 +89,7 @@ class MyCaseClient:
 
     def _request(self, method, path, params=None, json_body=None, retry=True, _rate_retries=0):
         url = f"{BASE_URL}/{path.lstrip('/')}"
-        resp = self.session.request(method, url, params=params, json=json_body)
+        resp = self.session.request(method, url, params=params, json=json_body, allow_redirects=False)
 
         if resp.status_code == 401 and retry:
             self.tm.refresh()
@@ -103,8 +103,17 @@ class MyCaseClient:
             return self._request(method, path, params=params, json_body=json_body,
                                   retry=retry, _rate_retries=_rate_retries + 1)
 
+        # 202 Accepted = queued, no body (e.g. POST /calls)
+        if resp.status_code == 202:
+            return {"accepted": True}
+
+        # 204 No Content
         if resp.status_code == 204:
             return {"success": True}
+
+        # 302 = signed download URL in Location header (document data endpoints)
+        if resp.status_code == 302:
+            return {"download_url": resp.headers.get("Location")}
 
         if not resp.ok:
             raise RuntimeError(f"MyCase API error {resp.status_code}: {resp.text[:400]}")
@@ -184,10 +193,19 @@ class MyCaseClient:
 
     # ── Clients ───────────────────────────────────────────────────────────────
 
-    def list_clients(self, query=None, page_size=25):
+    def list_clients(self, email=None, first_name=None, last_name=None,
+                     cell_phone_number=None, updated_after=None, page_size=25):
         params = {"page_size": page_size}
-        if query:
-            params["filter[query]"] = query
+        if email:
+            params["filter[email]"] = email
+        if first_name:
+            params["filter[first_name]"] = first_name
+        if last_name:
+            params["filter[last_name]"] = last_name
+        if cell_phone_number:
+            params["filter[cell_phone_number]"] = cell_phone_number
+        if updated_after:
+            params["filter[updated_after]"] = updated_after
         return self.get("/clients", params)
 
     def get_client(self, client_id):
@@ -209,10 +227,14 @@ class MyCaseClient:
 
     # ── Companies ─────────────────────────────────────────────────────────────
 
-    def list_companies(self, query=None, page_size=25):
+    def list_companies(self, name=None, email=None, updated_after=None, page_size=25):
         params = {"page_size": page_size}
-        if query:
-            params["filter[query]"] = query
+        if name:
+            params["filter[name]"] = name
+        if email:
+            params["filter[email]"] = email
+        if updated_after:
+            params["filter[updated_after]"] = updated_after
         return self.get("/companies", params)
 
     def get_company(self, company_id):
@@ -239,14 +261,10 @@ class MyCaseClient:
 
     # ── Tasks ─────────────────────────────────────────────────────────────────
 
-    def list_tasks(self, case_id=None, assignee_id=None, status=None, page_size=25):
+    def list_tasks(self, updated_after=None, page_size=25):
         params = {"page_size": page_size}
-        if case_id:
-            params["filter[case_id]"] = case_id
-        if assignee_id:
-            params["filter[assignee_id]"] = assignee_id
-        if status:
-            params["filter[status]"] = status
+        if updated_after:
+            params["filter[updated_after]"] = updated_after
         return self.get("/tasks", params)
 
     def create_task(self, name, priority, due_date, staff_id, case_id=None, description=None):
@@ -283,12 +301,12 @@ class MyCaseClient:
             params["filter[end_date]"] = end_date
         return self.get("/events", params)
 
-    def create_event(self, name, start, end, case_id=None, location=None, description=None):
-        body = {"name": name, "start": start, "end": end}
+    def create_event(self, name, start, end, staff_id, case_id=None, location_id=None, description=None):
+        body = {"name": name, "start": start, "end": end, "staff": [{"id": staff_id}]}
         if case_id:
             body["case"] = {"id": case_id}
-        if location:
-            body["location"] = location
+        if location_id:
+            body["location"] = {"id": location_id}
         if description:
             body["description"] = description
         return self.post("/events", body)
@@ -304,12 +322,10 @@ class MyCaseClient:
 
     # ── Time Entries ──────────────────────────────────────────────────────────
 
-    def list_time_entries(self, case_id=None, staff_id=None, page_size=25):
+    def list_time_entries(self, updated_after=None, page_size=25):
         params = {"page_size": page_size}
-        if case_id:
-            params["filter[case_id]"] = case_id
-        if staff_id:
-            params["filter[staff_id]"] = staff_id
+        if updated_after:
+            params["filter[updated_after]"] = updated_after
         return self.get("/time_entries", params)
 
     def get_time_entry(self, entry_id):
@@ -440,11 +456,8 @@ class MyCaseClient:
     def list_all_document_versions(self):
         return self.get("/document_versions")
 
-    def upload_document_version(self, doc_id, path, filename=None):
-        body = {"path": path}
-        if filename:
-            body["filename"] = filename
-        return self.post(f"/documents/{doc_id}/versions", body)
+    def upload_document_version(self, doc_id):
+        return self.post(f"/documents/{doc_id}/versions")
 
     def get_document_data(self, doc_id):
         return self.get(f"/documents/{doc_id}/data")
@@ -583,7 +596,7 @@ class MyCaseClient:
     def create_custom_field(self, name, parent_type, field_type, list_options=None):
         body = {"name": name, "parent_type": parent_type, "field_type": field_type}
         if list_options:
-            body["list_options"] = list_options
+            body["list_options"] = [{"option_value": v} for v in list_options]
         return self.post("/custom_fields", body)
 
     def get_custom_field(self, field_id):
@@ -596,7 +609,7 @@ class MyCaseClient:
         return self.get(f"/custom_fields/{field_id}/list_options")
 
     def create_custom_field_option(self, field_id, option_value):
-        return self.post(f"/custom_fields/{field_id}/list_options", {"list_options": [option_value]})
+        return self.post(f"/custom_fields/{field_id}/list_options", {"list_options": [{"option_value": option_value}]})
 
     def update_custom_field_option(self, field_id, key, option_value):
         return self.put(f"/custom_fields/{field_id}/list_options/{key}", {"option_value": option_value})
@@ -606,12 +619,10 @@ class MyCaseClient:
 
     # ── Expenses ──────────────────────────────────────────────────────────────
 
-    def list_expenses(self, case_id=None, staff_id=None, page_size=25):
+    def list_expenses(self, updated_after=None, page_size=25):
         params = {"page_size": page_size}
-        if case_id:
-            params["filter[case_id]"] = case_id
-        if staff_id:
-            params["filter[staff_id]"] = staff_id
+        if updated_after:
+            params["filter[updated_after]"] = updated_after
         return self.get("/expenses", params)
 
     def get_expense(self, expense_id):
@@ -642,15 +653,15 @@ class MyCaseClient:
         return self.get("/calls", params)
 
     def create_call(self, called_at, caller_name=None, caller_phone_number=None,
-                    call_for=None, message=None, client_id=None, lead_id=None,
+                    call_for_staff_id=None, message=None, client_id=None, lead_id=None,
                     call_type=None, resolved=None):
         body = {"called_at": called_at}
         if caller_name:
             body["caller_name"] = caller_name
         if caller_phone_number:
             body["caller_phone_number"] = caller_phone_number
-        if call_for:
-            body["call_for"] = call_for
+        if call_for_staff_id:
+            body["call_for"] = {"id": call_for_staff_id}
         if message:
             body["message"] = message
         if client_id:
