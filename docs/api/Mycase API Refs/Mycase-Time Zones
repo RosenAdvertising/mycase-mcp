@@ -1,2 +1,0 @@
-Time Zones
-It is highly recommended that any ISO 8601 timestamp given via the API include the timezone offset. If a timezone is not specified, the API will default to UTC. For example, the timestamp 2023-02-13T17:16:19-05:00 refers to the EST timezone via the -05:00 offset. This offset indicates EST timezone is 5 hours behind UTC time.
