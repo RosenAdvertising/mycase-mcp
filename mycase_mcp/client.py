@@ -480,3 +480,210 @@ class MyCaseClient:
 
     def list_custom_fields(self, per_page=50):
         return self.get("/custom_fields", {"per_page": per_page})
+
+    def create_custom_field(self, name, parent_type, field_type, list_options=None):
+        body = {"custom_field": {"name": name, "parent_type": parent_type, "field_type": field_type}}
+        if list_options:
+            body["custom_field"]["list_options"] = list_options
+        return self.post("/custom_fields", body)
+
+    def get_custom_field(self, field_id):
+        return self.get(f"/custom_fields/{field_id}")
+
+    def delete_custom_field(self, field_id):
+        return self.delete(f"/custom_fields/{field_id}")
+
+    def list_custom_field_options(self, field_id):
+        return self.get(f"/custom_fields/{field_id}/list_options")
+
+    def create_custom_field_option(self, field_id, option_value):
+        return self.post(f"/custom_fields/{field_id}/list_options", {"list_options": [option_value]})
+
+    def update_custom_field_option(self, field_id, key, option_value):
+        return self.put(f"/custom_fields/{field_id}/list_options/{key}", {"option_value": option_value})
+
+    def delete_custom_field_option(self, field_id, key):
+        return self.delete(f"/custom_fields/{field_id}/list_options/{key}")
+
+    # ── Case Stages CRUD ──────────────────────────────────────────────────────
+
+    def create_case_stage(self, name):
+        return self.post("/case_stages", {"case_stage": {"name": name}})
+
+    def update_case_stage(self, stage_id, name):
+        return self.put(f"/case_stages/{stage_id}", {"case_stage": {"name": name}})
+
+    def delete_case_stage(self, stage_id):
+        return self.delete(f"/case_stages/{stage_id}")
+
+    # ── Locations CRUD ────────────────────────────────────────────────────────
+
+    def create_location(self, name, address1=None, city=None, state=None, zip_code=None, country=None):
+        body = {"location": {"name": name}}
+        if any([address1, city, state, zip_code, country]):
+            body["location"]["address"] = {k: v for k, v in {
+                "address1": address1, "city": city, "state": state,
+                "zip_code": zip_code, "country": country
+            }.items() if v}
+        return self.post("/locations", body)
+
+    def update_location(self, location_id, **fields):
+        return self.put(f"/locations/{location_id}", {"location": fields})
+
+    def delete_location(self, location_id):
+        return self.delete(f"/locations/{location_id}")
+
+    # ── People Groups CRUD ────────────────────────────────────────────────────
+
+    def create_people_group(self, name):
+        return self.post("/people_groups", {"people_group": {"name": name}})
+
+    def update_people_group(self, group_id, name):
+        return self.put(f"/people_groups/{group_id}", {"people_group": {"name": name}})
+
+    def delete_people_group(self, group_id):
+        return self.delete(f"/people_groups/{group_id}")
+
+    # ── Practice Areas ────────────────────────────────────────────────────────
+
+    def list_practice_areas(self, per_page=50):
+        return self.get("/practice_areas", {"per_page": per_page})
+
+    def create_practice_area(self, name):
+        return self.post("/practice_areas", {"practice_area": {"name": name}})
+
+    def update_practice_area(self, area_id, name):
+        return self.put(f"/practice_areas/{area_id}", {"practice_area": {"name": name}})
+
+    def delete_practice_area(self, area_id):
+        return self.delete(f"/practice_areas/{area_id}")
+
+    # ── Referral Sources CRUD ─────────────────────────────────────────────────
+
+    def create_referral_source(self, name):
+        return self.post("/referral_sources", {"referral_source": {"name": name}})
+
+    # ── Expenses ──────────────────────────────────────────────────────────────
+
+    def list_expenses(self, case_id=None, staff_id=None, per_page=25, page=1):
+        params = {"per_page": per_page, "page": page}
+        if case_id:
+            params["filter[case_id]"] = case_id
+        if staff_id:
+            params["filter[staff_id]"] = staff_id
+        return self.get("/expenses", params)
+
+    def get_expense(self, expense_id):
+        return self.get(f"/expenses/{expense_id}")
+
+    def create_expense(self, activity_name, cost, units=1, case_id=None, staff_id=None,
+                       description=None, billable=True, entry_date=None):
+        body = {"expense": {"activity_name": activity_name, "cost": cost, "units": units, "billable": billable}}
+        if case_id:
+            body["expense"]["case"] = {"id": case_id}
+        if staff_id:
+            body["expense"]["staff"] = {"id": staff_id}
+        if description:
+            body["expense"]["description"] = description
+        if entry_date:
+            body["expense"]["entry_date"] = entry_date
+        return self.post("/expenses", body)
+
+    def delete_expense(self, expense_id):
+        return self.delete(f"/expenses/{expense_id}")
+
+    # ── Calls ─────────────────────────────────────────────────────────────────
+
+    def list_calls(self, per_page=25, updated_after=None):
+        params = {"per_page": per_page}
+        if updated_after:
+            params["filter[updated_after]"] = updated_after
+        return self.get("/calls", params)
+
+    def create_call(self, called_at, caller_name=None, caller_phone_number=None,
+                    call_for=None, message=None, client_id=None, lead_id=None,
+                    call_type=None, resolved=None):
+        body = {"call": {"called_at": called_at}}
+        if caller_name:
+            body["call"]["caller_name"] = caller_name
+        if caller_phone_number:
+            body["call"]["caller_phone_number"] = caller_phone_number
+        if call_for:
+            body["call"]["call_for"] = call_for
+        if message:
+            body["call"]["message"] = message
+        if client_id:
+            body["call"]["client"] = {"id": client_id}
+        if lead_id:
+            body["call"]["lead"] = {"id": lead_id}
+        if call_type:
+            body["call"]["call_type"] = call_type
+        if resolved is not None:
+            body["call"]["resolved"] = resolved
+        return self.post("/calls", body)
+
+    def update_call(self, call_id, **fields):
+        return self.put(f"/calls/{call_id}", {"call": fields})
+
+    def delete_call(self, call_id):
+        return self.delete(f"/calls/{call_id}")
+
+    # ── Folders ───────────────────────────────────────────────────────────────
+
+    def list_folder_documents(self, folder_id, per_page=25):
+        return self.get(f"/folders/{folder_id}/documents", {"per_page": per_page})
+
+    def list_folder_subfolders(self, folder_id):
+        return self.get(f"/folders/{folder_id}/subfolders")
+
+    def create_case_subfolder(self, case_id, path):
+        return self.post(f"/cases/{case_id}/subfolders", {"folder": {"path": path}})
+
+    # ── Documents (upload + version management) ───────────────────────────────
+
+    def upload_document(self, filename, path, description=None, assigned_date=None, staff_id=None):
+        body = {"document": {"filename": filename, "path": path}}
+        if description:
+            body["document"]["description"] = description
+        if assigned_date:
+            body["document"]["assigned_date"] = assigned_date
+        if staff_id:
+            body["document"]["staff"] = {"id": staff_id}
+        return self.post("/documents", body)
+
+    def upload_case_document(self, case_id, filename, path, description=None, assigned_date=None):
+        body = {"document": {"filename": filename, "path": path}}
+        if description:
+            body["document"]["description"] = description
+        if assigned_date:
+            body["document"]["assigned_date"] = assigned_date
+        return self.post(f"/cases/{case_id}/documents", body)
+
+    def list_all_document_versions(self):
+        return self.get("/document_versions")
+
+    def upload_document_version(self, doc_id, path, filename=None):
+        body = {"document": {"path": path}}
+        if filename:
+            body["document"]["filename"] = filename
+        return self.post(f"/documents/{doc_id}/versions", body)
+
+    def get_document_data(self, doc_id):
+        return self.get(f"/documents/{doc_id}/data")
+
+    def get_document_version_data(self, doc_id, version_number):
+        return self.get(f"/documents/{doc_id}/versions/{version_number}/data")
+
+    def delete_document_version(self, doc_id, version_number):
+        return self.delete(f"/documents/{doc_id}/versions/{version_number}")
+
+    # ── Webhooks ──────────────────────────────────────────────────────────────
+
+    def list_webhook_subscriptions(self):
+        return self.get("/webhooks/subscriptions")
+
+    def create_webhook_subscription(self, model, url, actions):
+        return self.post("/webhooks/subscriptions", {"webhook": {"model": model, "url": url, "actions": actions}})
+
+    def delete_webhook_subscription(self, subscription_id):
+        return self.delete(f"/webhooks/subscriptions/{subscription_id}")

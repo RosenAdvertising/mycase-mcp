@@ -1,0 +1,11 @@
+Cursor-based Pagination
+MyCase uses cursor-based pagination. Cursor based pagination uses a cursor(query parameter) to know what items to fetch next.
+
+We break up results into smaller subsets and return them in pages. We default to 25 items per page but you can modify the page size using the page_size query parameter. The maximum items per page that we allow is 1,000.
+
+$ curl -I "http://example.com/v1/cases?page_size=40"
+To navigate a paginated resource collection, request the first page of items and if there are more pages a Link header (see RFC 5988 for more information ) will be added to the response. This link should be utilized to retrieve the next page and will expire after 3 days.
+
+Example:
+
+Link: <http://example.com/v1/cases?page_size=40&page_token=abc>; rel="next"

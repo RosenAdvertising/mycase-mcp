@@ -1,0 +1,614 @@
+{
+    "openapi": "3.1.0",
+    "x-stoplight": {
+        "id": "cqy2s88ufv5tj"
+    },
+    "info": {
+        "title": "Clients (People)",
+        "version": "1.0",
+        "description": "Clients have been renamed to People in the MyCase UI.",
+        "contact": {
+            "name": "MyCase"
+        }
+    },
+    "servers": [
+        {
+            "url": "https://external-integrations.mycase.com"
+        }
+    ],
+    "paths": {
+        "/v1/clients": {
+            "get": {
+                "summary": "Get Clients (People)",
+                "tags": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "headers": {
+                            "Link": {
+                                "$ref": "#/components/headers/Cases_PaginationLink"
+                            },
+                            "Item-Count": {
+                                "$ref": "#/components/headers/Cases_PaginationCount"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/ClientResponse"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "operationId": "get-v1-clients",
+                "description": "Get all firm clients (people) viewable by the authorized user.",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/PageSize"
+                    },
+                    {
+                        "$ref": "#/components/parameters/FilterUpdatedAfter"
+                    },
+                    {
+                        "$ref": "#/components/parameters/FilterEmail"
+                    },
+                    {
+                        "$ref": "#/components/parameters/FilterFirstName"
+                    },
+                    {
+                        "$ref": "#/components/parameters/FilterLastName"
+                    },
+                    {
+                        "$ref": "#/components/parameters/FilterCellPhone"
+                    },
+                    {
+                        "$ref": "#/components/parameters/FilterWorkPhone"
+                    },
+                    {
+                        "$ref": "#/components/parameters/FilterHomePhone"
+                    }
+                ]
+            },
+            "post": {
+                "summary": "Create a Client  (Person)",
+                "operationId": "post-v1-clients",
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ClientResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "description": "Create an individual client (person).",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ClientRequest"
+                            }
+                        }
+                    }
+                }
+            },
+            "parameters": []
+        },
+        "/v1/clients/{id}": {
+            "parameters": [
+                {
+                    "schema": {
+                        "type": "string"
+                    },
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "description": "The id of the client (person) you want to view or update."
+                }
+            ],
+            "get": {
+                "summary": "Get an Individual Client  (Person)",
+                "tags": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ClientResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "operationId": "get-v1-clients-id",
+                "description": "Allows you to view a specfic client (person), based on the authorized user/firm priviledges.",
+                "parameters": []
+            },
+            "put": {
+                "summary": "Update an Individual Client  (Person)",
+                "operationId": "put-v1-clients-id",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "description": "Allows you to edit a specfic client (person), based on the authorized user/firm priviledges.",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ClientRequest"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "summary": "Delete an Individual Client  (Person)",
+                "operationId": "delete-v1-clients-id",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "description": "Allows you to delete a specfic client (person), based on the authorized user/firm priviledges."
+            }
+        }
+    },
+    "components": {
+        "parameters": {
+            "FilterCellPhone": {
+                "title": "FilterCellPhoneParam",
+                "name": "filter[cell_phone_number]",
+                "in": "query",
+                "required": false,
+                "description": "Filters the response to return only resources that match the filter provided.",
+                "schema": {
+                    "type": "string",
+                    "example": "?filter[cell_phone_number]=760-555-1234"
+                }
+            },
+            "FilterEmail": {
+                "title": "FilterEmailParam",
+                "name": "filter[email]",
+                "in": "query",
+                "required": false,
+                "description": "Filters the response to return only resources that match the filter provided.",
+                "schema": {
+                    "type": "string",
+                    "example": "?filter[email]=lawyer@lawfirm.com"
+                }
+            },
+            "FilterFirstName": {
+                "title": "FilterFirstNameParam",
+                "name": "filter[first_name]",
+                "in": "query",
+                "required": false,
+                "description": "Filters the response to return only resources that match the filter provided.",
+                "schema": {
+                    "type": "string",
+                    "example": "?filter[first_name]=John"
+                }
+            },
+            "FilterHomePhone": {
+                "title": "FilterHomePhoneParam",
+                "name": "filter[home_phone_number]",
+                "in": "query",
+                "required": false,
+                "description": "Filters the response to return only resources that match the filter provided.",
+                "schema": {
+                    "type": "string",
+                    "example": "?filter[home_phone_number]=760-555-1234"
+                }
+            },
+            "FilterLastName": {
+                "title": "FilterLastNameParam",
+                "name": "filter[last_name]",
+                "in": "query",
+                "required": false,
+                "description": "Filters the response to return only resources that match the filter provided.",
+                "schema": {
+                    "type": "string",
+                    "example": "?filter[last_name]=Doe"
+                }
+            },
+            "FilterUpdatedAfter": {
+                "title": "FilterUpdatedAfterParam",
+                "name": "filter[updated_after]",
+                "in": "query",
+                "required": false,
+                "description": "Filters the response to return only resources that are created or updated after a specified date/time. ISO 8610 date format. Results are inclusive of the date/time entered. Can include time but does not need to.",
+                "schema": {
+                    "type": "string",
+                    "example": "?filter[updated_after]=2022-03-17T21:00:00Z"
+                }
+            },
+            "FilterWorkPhone": {
+                "title": "FilterWorkPhoneParam",
+                "name": "filter[work_phone_number]",
+                "in": "query",
+                "required": false,
+                "description": "Filters the response to return only resources that match the filter provided.",
+                "schema": {
+                    "type": "string",
+                    "example": "?filter[work_phone_number]=760-555-1234"
+                }
+            },
+            "PageSize": {
+                "title": "PageSizeParam",
+                "name": "page_size",
+                "in": "query",
+                "required": false,
+                "schema": {
+                    "type": "number",
+                    "default": "25",
+                    "example": "?page_size=100",
+                    "maximum": 1000,
+                    "minimum": 1
+                },
+                "description": "The ability to specify the number of resources that are returned per response page."
+            }
+        },
+        "schemas": {
+            "AddressNestedResponse": {
+                "title": "AddressNestedResponse",
+                "x-stoplight": {
+                    "id": "4behikc37n07n"
+                },
+                "type": "object",
+                "x-internal": false,
+                "properties": {
+                    "address1": {
+                        "type": "string"
+                    },
+                    "address2": {
+                        "type": "string"
+                    },
+                    "city": {
+                        "type": "string"
+                    },
+                    "state": {
+                        "type": "string"
+                    },
+                    "zip_code": {
+                        "type": "string"
+                    },
+                    "country": {
+                        "type": "string"
+                    }
+                }
+            },
+            "AddressRequest": {
+                "title": "AddressRequest",
+                "x-stoplight": {
+                    "id": "gdbr2fvdvigvj"
+                },
+                "type": "object",
+                "x-internal": false,
+                "description": "If you provide any address object then all address properties need to be included.",
+                "properties": {
+                    "address1": {
+                        "type": "string"
+                    },
+                    "address2": {
+                        "type": "string"
+                    },
+                    "city": {
+                        "type": "string"
+                    },
+                    "state": {
+                        "type": "string"
+                    },
+                    "zip_code": {
+                        "type": "string"
+                    },
+                    "country": {
+                        "type": "string"
+                    }
+                }
+            },
+            "CaseNestedResponse": {
+                "title": "CaseNestedResponse",
+                "x-stoplight": {
+                    "id": "hnstwxngt9tpt"
+                },
+                "type": [
+                    "object",
+                    "null"
+                ],
+                "x-internal": false,
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "The ID of the case."
+                    }
+                }
+            },
+            "ClientRequest": {
+                "title": "ClientRequest",
+                "x-stoplight": {
+                    "id": "tx9qoh6u34rc1"
+                },
+                "type": "object",
+                "x-internal": false,
+                "properties": {
+                    "email": {
+                        "type": "string",
+                        "description": "The email of the client being created."
+                    },
+                    "first_name": {
+                        "type": "string",
+                        "description": "The first name of the client being created."
+                    },
+                    "middle_initial": {
+                        "type": "string",
+                        "description": "[DEPRECATED] This field has been replaced by the `middle_name` field for consistency. Please use the `middle_name` field instead. Use of both fields will result in an error.",
+                        "deprecated": true
+                    },
+                    "middle_name": {
+                        "type": "string",
+                        "description": "The middle name of the client being created."
+                    },
+                    "last_name": {
+                        "type": "string",
+                        "description": "The last name of the client being created."
+                    },
+                    "address": {
+                        "$ref": "#/components/schemas/AddressRequest"
+                    },
+                    "cell_phone_number": {
+                        "type": "string",
+                        "description": "The clients cell phone number."
+                    },
+                    "work_phone_number": {
+                        "type": "string",
+                        "description": "The clients work phone number."
+                    },
+                    "home_phone_number": {
+                        "type": "string",
+                        "description": "The clients home phone number."
+                    },
+                    "fax_phone_number": {
+                        "type": "string",
+                        "description": "The clients fax phone number."
+                    },
+                    "birthdate": {
+                        "type": "string",
+                        "description": "The clients date of birth in ISO-8601 date format."
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Any additional information you want to keep on a particular client. It is seen by other firm members but is not visible to the individual client. "
+                    },
+                    "people_group": {
+                        "type": "object",
+                        "description": "The people group associated with this client.",
+                        "properties": {
+                            "id": {
+                                "type": "integer"
+                            }
+                        }
+                    },
+                    "cases": {
+                        "type": "array",
+                        "description": "Any cases associated with the client, can be one or multiple.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "integer",
+                                    "description": "The individual case ID associated with the client. "
+                                }
+                            }
+                        }
+                    },
+                    "custom_field_values": {
+                        "type": "array",
+                        "description": "Specify values for custom fields that have `parent_type` of `client`.",
+                        "items": {
+                            "$ref": "#/components/schemas/CustomFieldValueRequest"
+                        }
+                    }
+                },
+                "required": [
+                    "first_name",
+                    "last_name"
+                ]
+            },
+            "ClientResponse": {
+                "title": "ClientResponse",
+                "x-stoplight": {
+                    "id": "qd2emajzo0o96"
+                },
+                "type": "object",
+                "x-internal": false,
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "The unique ID of the client."
+                    },
+                    "email": {
+                        "type": "string",
+                        "description": "The email of the client."
+                    },
+                    "first_name": {
+                        "type": "string",
+                        "description": "The first name of the client."
+                    },
+                    "middle_initial": {
+                        "type": "string",
+                        "description": "[DEPRECATED] This field has been replaced by the `middle_name` field for consistency. Please use the `middle_name` field instead. Use of both fields will result in an error.",
+                        "deprecated": true
+                    },
+                    "middle_name": {
+                        "type": "string",
+                        "description": "The middle name of the client."
+                    },
+                    "last_name": {
+                        "type": "string",
+                        "description": "The last name of the client. "
+                    },
+                    "address": {
+                        "$ref": "#/components/schemas/AddressNestedResponse"
+                    },
+                    "cell_phone_number": {
+                        "description": "The clients cell phone number.",
+                        "type": "string"
+                    },
+                    "work_phone_number": {
+                        "description": "The clients work phone number.",
+                        "type": "string"
+                    },
+                    "home_phone_number": {
+                        "type": "string",
+                        "description": "The clients home phone number."
+                    },
+                    "fax_phone_number": {
+                        "type": "string",
+                        "description": "The clients fax phone number."
+                    },
+                    "contact_group": {
+                        "type": "string",
+                        "description": "The client's contact group. This has been deprecated. Please use the `people_group` field instead.",
+                        "deprecated": true
+                    },
+                    "people_group": {
+                        "type": "object",
+                        "description": "The people group associated with this client.",
+                        "properties": {
+                            "id": {
+                                "type": "integer"
+                            }
+                        }
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Any additional information associated to a particular client. It is seen by other firm members but is not visible to the individual client. "
+                    },
+                    "birthdate": {
+                        "type": "string",
+                        "description": "The clients date of birth in ISO-8601 date format."
+                    },
+                    "archived": {
+                        "type": "boolean",
+                        "description": "A True or False to let you know if the client has been archived and is no longer available for use."
+                    },
+                    "cases": {
+                        "type": "array",
+                        "uniqueItems": true,
+                        "description": "Any cases associated with the client, can be one or multiple.",
+                        "items": {
+                            "$ref": "#/components/schemas/CaseNestedResponse"
+                        }
+                    },
+                    "custom_field_values": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/CustomFieldValueResponse"
+                        }
+                    },
+                    "updated_at": {
+                        "type": "string",
+                        "description": "When the client was last updated."
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "description": "When the client was created."
+                    }
+                }
+            },
+            "CustomFieldValueRequest": {
+                "title": "CustomFieldValueRequest",
+                "x-stoplight": {
+                    "id": "ro159fml6kbba"
+                },
+                "type": "object",
+                "x-internal": false,
+                "properties": {
+                    "custom_field": {
+                        "type": "object",
+                        "description": "The custom field that this value is associated with.",
+                        "properties": {
+                            "id": {
+                                "type": "integer"
+                            }
+                        }
+                    },
+                    "value": {
+                        "description": "The value of this custom field.",
+                        "type": [
+                            "string",
+                            "number",
+                            "boolean"
+                        ]
+                    }
+                },
+                "required": [
+                    "custom_field",
+                    "value"
+                ]
+            },
+            "CustomFieldValueResponse": {
+                "title": "CustomFieldValueResponse",
+                "x-stoplight": {
+                    "id": "dj7cxrww1ic2a"
+                },
+                "type": "object",
+                "x-internal": false,
+                "properties": {
+                    "custom_field": {
+                        "type": "object",
+                        "description": "The custom field that this value is associated with. By default, this object will only be returned with an `id` field. To specify more fields to be returned, please see the `field` query parameters.",
+                        "properties": {
+                            "id": {
+                                "type": "integer"
+                            },
+                            "field_type": {
+                                "type": "string",
+                                "description": "The field type of the Custom Field. One of `short_text | long_text | numeric | boolean | date | list | currency`."
+                            }
+                        }
+                    },
+                    "value": {
+                        "description": "The value of this custom field.",
+                        "type": [
+                            "string",
+                            "number",
+                            "boolean"
+                        ]
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "description": "An ISO 8601 timestamp of when the Custom Field value was created."
+                    },
+                    "updated_at": {
+                        "type": "string",
+                        "description": "An ISO 8601 timestamp of when the Custom Field value was last updated."
+                    }
+                }
+            }
+        },
+        "headers": {
+            "Cases_PaginationCount": {
+                "description": "The total number of results.",
+                "schema": {
+                    "type": "number"
+                }
+            },
+            "Cases_PaginationLink": {
+                "description": "If there is another page of results, we provides you with the cursor to the next page using `page_token`. Please reference our pagination documentation for more info.",
+                "schema": {
+                    "type": "string"
+                }
+            }
+        }
+    }
+}

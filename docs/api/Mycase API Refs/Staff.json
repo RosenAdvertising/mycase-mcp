@@ -1,0 +1,272 @@
+{
+    "openapi": "3.1.0",
+    "x-stoplight": {
+        "id": "8tcl50enttets"
+    },
+    "info": {
+        "title": "Staff",
+        "version": "1.0",
+        "description": "Staff API",
+        "contact": {
+            "name": "MyCase"
+        }
+    },
+    "servers": [
+        {
+            "url": "https://external-integrations.mycase.com"
+        }
+    ],
+    "paths": {
+        "/v1/staff": {
+            "get": {
+                "summary": "Get all Staff",
+                "tags": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "headers": {
+                            "Link": {
+                                "$ref": "#/components/headers/Cases_PaginationLink"
+                            },
+                            "Item-Count": {
+                                "$ref": "#/components/headers/Cases_PaginationCount"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/StaffResponse"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "operationId": "get-v1-staff",
+                "description": "Get all firm staff viewable by the authorized user.",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/PageSize"
+                    },
+                    {
+                        "$ref": "#/components/parameters/FilterUpdatedAfter"
+                    },
+                    {
+                        "$ref": "#/components/parameters/filterStatus"
+                    }
+                ]
+            },
+            "parameters": []
+        },
+        "/v1/staff/{id}": {
+            "parameters": [
+                {
+                    "schema": {
+                        "type": "string"
+                    },
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "description": "The id of the lead you want to view or update."
+                }
+            ],
+            "get": {
+                "summary": "Get an Individual Staff",
+                "tags": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/StaffResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "operationId": "get-v1-staff-id",
+                "description": "Allows you to view a specfic staff member, based on the authorized user/firm priviledges.",
+                "parameters": []
+            }
+        },
+        "/v1/me": {
+            "parameters": [],
+            "get": {
+                "summary": "Get the Current Authorized User",
+                "tags": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/StaffResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "operationId": "get-v1-me",
+                "description": "Allows you to view the current authorized user.",
+                "parameters": []
+            }
+        }
+    },
+    "components": {
+        "parameters": {
+            "filterStatus": {
+                "name": "filter[status]",
+                "in": "query",
+                "required": false,
+                "schema": {
+                    "type": "string"
+                },
+                "description": "One of either 'active' or 'inactive'. Will then only return firm members with the status specified."
+            },
+            "FilterUpdatedAfter": {
+                "title": "FilterUpdatedAfterParam",
+                "name": "filter[updated_after]",
+                "in": "query",
+                "required": false,
+                "description": "Filters the response to return only resources that are created or updated after a specified date/time. ISO 8610 date format. Results are inclusive of the date/time entered. Can include time but does not need to.",
+                "schema": {
+                    "type": "string",
+                    "example": "?filter[updated_after]=2022-03-17T21:00:00Z"
+                }
+            },
+            "PageSize": {
+                "title": "PageSizeParam",
+                "name": "page_size",
+                "in": "query",
+                "required": false,
+                "schema": {
+                    "type": "number",
+                    "default": "25",
+                    "example": "?page_size=100",
+                    "maximum": 1000,
+                    "minimum": 1
+                },
+                "description": "The ability to specify the number of resources that are returned per response page."
+            }
+        },
+        "schemas": {
+            "AddressNestedResponse": {
+                "title": "AddressNestedResponse",
+                "x-stoplight": {
+                    "id": "4behikc37n07n"
+                },
+                "type": "object",
+                "x-internal": false,
+                "properties": {
+                    "address1": {
+                        "type": "string"
+                    },
+                    "address2": {
+                        "type": "string"
+                    },
+                    "city": {
+                        "type": "string"
+                    },
+                    "state": {
+                        "type": "string"
+                    },
+                    "zip_code": {
+                        "type": "string"
+                    },
+                    "country": {
+                        "type": "string"
+                    }
+                }
+            },
+            "StaffResponse": {
+                "title": "StaffResponse",
+                "x-stoplight": {
+                    "id": "z5estcf7nyb8v"
+                },
+                "type": "object",
+                "x-internal": false,
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "The unique ID of the staff."
+                    },
+                    "email": {
+                        "type": "string",
+                        "description": "The email of the staff."
+                    },
+                    "first_name": {
+                        "type": "string",
+                        "description": "The first name of the staff."
+                    },
+                    "middle_initial": {
+                        "type": "string",
+                        "description": "The middle name (or initial) of the staff."
+                    },
+                    "last_name": {
+                        "type": "string",
+                        "description": "The last name of the staff. "
+                    },
+                    "address": {
+                        "$ref": "#/components/schemas/AddressNestedResponse"
+                    },
+                    "cell_phone_number": {
+                        "description": "The staff's cell phone number.",
+                        "type": "string"
+                    },
+                    "work_phone_number": {
+                        "description": "The staff's work phone number.",
+                        "type": "string"
+                    },
+                    "home_phone_number": {
+                        "type": "string",
+                        "description": "The staff's home phone number."
+                    },
+                    "type": {
+                        "type": "string",
+                        "description": "The type of the staff."
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "The title of the staff."
+                    },
+                    "active": {
+                        "type": "boolean",
+                        "description": "Whether or not this staff is currently active."
+                    },
+                    "default_hourly_rate": {
+                        "type": "number",
+                        "x-stoplight": {
+                            "id": "fyjxdm74nkc4p"
+                        },
+                        "description": "This staff member's default billing rate."
+                    },
+                    "updated_at": {
+                        "type": "string",
+                        "description": "When the staff was last updated."
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "description": "When the staff was created."
+                    }
+                }
+            }
+        },
+        "headers": {
+            "Cases_PaginationCount": {
+                "description": "The total number of results.",
+                "schema": {
+                    "type": "number"
+                }
+            },
+            "Cases_PaginationLink": {
+                "description": "If there is another page of results, we provides you with the cursor to the next page using `page_token`. Please reference our pagination documentation for more info.",
+                "schema": {
+                    "type": "string"
+                }
+            }
+        }
+    }
+}

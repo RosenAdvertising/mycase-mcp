@@ -1,0 +1,482 @@
+{
+    "openapi": "3.1.0",
+    "x-stoplight": {
+        "id": "ra0bhq2rn1rbh"
+    },
+    "info": {
+        "title": "Custom Fields",
+        "version": "1.0",
+        "description": "Custom Fields API",
+        "contact": {
+            "name": "MyCase"
+        }
+    },
+    "servers": [
+        {
+            "url": "https://external-integrations.mycase.com"
+        }
+    ],
+    "paths": {
+        "/v1/custom_fields": {
+            "get": {
+                "summary": "Get Custom Fields",
+                "tags": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "headers": {
+                            "Link": {
+                                "$ref": "#/components/headers/Cases_PaginationLink"
+                            },
+                            "Item-Count": {
+                                "$ref": "#/components/headers/Cases_PaginationCount"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/CustomFieldResponse"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "operationId": "get-v1-custom_fields",
+                "description": "Get all firm custom fields viewable by the authorized user.",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/PageSize"
+                    },
+                    {
+                        "$ref": "#/components/parameters/FilterUpdatedAfter"
+                    }
+                ]
+            },
+            "post": {
+                "summary": "Create a Custom Field",
+                "operationId": "post-v1-custom_fields",
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CustomFieldResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "description": "Create an individual custom field.",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CustomFieldRequest"
+                            }
+                        }
+                    }
+                }
+            },
+            "parameters": []
+        },
+        "/v1/custom_fields/{id}": {
+            "parameters": [
+                {
+                    "schema": {
+                        "type": "string"
+                    },
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "description": "The id of the custom field you want to view or update."
+                }
+            ],
+            "get": {
+                "summary": "Get an Individual Custom Field",
+                "tags": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CustomFieldResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "operationId": "get-v1-custom_fields-id",
+                "description": "Allows you to view a specfic custom field, based on the authorized user/firm priviledges.",
+                "parameters": []
+            },
+            "delete": {
+                "summary": "Delete an Individual Custom Field",
+                "operationId": "delete-v1-custom_fields-id",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "description": "Allows you to delete a specfic custom field, based on the authorized user/firm priviledges."
+            }
+        },
+        "/v1/custom_fields/{id}/list_options": {
+            "parameters": [
+                {
+                    "schema": {
+                        "type": "string"
+                    },
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "description": "The id of the custom field you want to view or update."
+                }
+            ],
+            "get": {
+                "summary": "Get the List Options for a Custom Field",
+                "tags": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/CustomFieldListOptionsResponse",
+                                        "x-stoplight": {
+                                            "id": "7vwc5yoh1vatp"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "operationId": "get-v1-custom_fields-id-list_options",
+                "description": "Allows you to view a specfic custom field's list options, based on the authorized user/firm priviledges.",
+                "parameters": []
+            },
+            "post": {
+                "summary": "Add List Options to a Custom Field",
+                "operationId": "post-v1-custom_fields-id-list_options",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/CustomFieldListOptionsResponse",
+                                        "x-stoplight": {
+                                            "id": "eocb70rdqq7pk"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "description": "Add list options to a custom field.",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CustomFieldListOptionsRequest"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/custom_fields/{id}/list_options/{key}": {
+            "parameters": [
+                {
+                    "schema": {
+                        "type": "string"
+                    },
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "description": "The id of the custom field you want to view or update."
+                },
+                {
+                    "schema": {
+                        "type": "string"
+                    },
+                    "name": "key",
+                    "in": "path",
+                    "required": true,
+                    "description": "The unique key identifier of the list option to update."
+                }
+            ],
+            "put": {
+                "summary": "Update a List Option for a Custom Field",
+                "operationId": "put-v1-custom_fields-id-list_options-key",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "option_value": {
+                                        "type": "string",
+                                        "x-stoplight": {
+                                            "id": "juhgqluudyu5u"
+                                        },
+                                        "description": "The new name for this list option."
+                                    }
+                                },
+                                "required": [
+                                    "option_value"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "description": "Update the name of a specific list option on a custom field."
+            },
+            "delete": {
+                "summary": "Delete a List Option for a Custom Field",
+                "operationId": "delete-v1-custom_fields-id-list_options-key",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "description": "Delete a specific list option on a custom field."
+            }
+        }
+    },
+    "components": {
+        "parameters": {
+            "FilterUpdatedAfter": {
+                "title": "FilterUpdatedAfterParam",
+                "name": "filter[updated_after]",
+                "in": "query",
+                "required": false,
+                "description": "Filters the response to return only resources that are created or updated after a specified date/time. ISO 8610 date format. Results are inclusive of the date/time entered. Can include time but does not need to.",
+                "schema": {
+                    "type": "string",
+                    "example": "?filter[updated_after]=2022-03-17T21:00:00Z"
+                }
+            },
+            "PageSize": {
+                "title": "PageSizeParam",
+                "name": "page_size",
+                "in": "query",
+                "required": false,
+                "schema": {
+                    "type": "number",
+                    "default": "25",
+                    "example": "?page_size=100",
+                    "maximum": 1000,
+                    "minimum": 1
+                },
+                "description": "The ability to specify the number of resources that are returned per response page."
+            }
+        },
+        "schemas": {
+            "CustomFieldListOptionsRequest": {
+                "title": "CustomFieldListOptionsRequest",
+                "x-stoplight": {
+                    "id": "oeihtbj4q5v6j"
+                },
+                "type": "object",
+                "x-internal": false,
+                "properties": {
+                    "list_options": {
+                        "type": "array",
+                        "x-stoplight": {
+                            "id": "jg38ucy45vvfn"
+                        },
+                        "description": "List options to add to this custom field.",
+                        "items": {
+                            "type": "object",
+                            "x-stoplight": {
+                                "id": "o6t3yoqn9ljf8"
+                            },
+                            "properties": {
+                                "option_value": {
+                                    "type": "string",
+                                    "description": "The name of the list option.",
+                                    "x-stoplight": {
+                                        "id": "q2b0ffaarlhpd"
+                                    }
+                                }
+                            },
+                            "required": [
+                                "option_value"
+                            ]
+                        }
+                    }
+                }
+            },
+            "CustomFieldListOptionsResponse": {
+                "x-stoplight": {
+                    "id": "7vwc5yoh1vatp"
+                },
+                "title": "CustomFieldListOptionsResponse",
+                "type": "object",
+                "x-internal": false,
+                "properties": {
+                    "key": {
+                        "type": "string",
+                        "description": "The unique key identifier for this list option.",
+                        "x-stoplight": {
+                            "id": "seb262ownknya"
+                        }
+                    },
+                    "option": {
+                        "type": "string",
+                        "description": "The name of this list option.",
+                        "x-stoplight": {
+                            "id": "37y0rh11sbgh8"
+                        }
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "description": "An ISO 8601 timestamp of when the list option was created.",
+                        "x-stoplight": {
+                            "id": "ov85yrsle5l4o"
+                        }
+                    },
+                    "updated_at": {
+                        "type": "string",
+                        "description": "An ISO 8601 timestamp of when the list option was last updated.",
+                        "x-stoplight": {
+                            "id": "g9f6jtt460rfc"
+                        }
+                    }
+                }
+            },
+            "CustomFieldRequest": {
+                "title": "CustomFieldRequest",
+                "x-stoplight": {
+                    "id": "vqbx0gg2md0il"
+                },
+                "type": "object",
+                "x-internal": false,
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "The name of the Custom Field."
+                    },
+                    "parent_type": {
+                        "type": "string",
+                        "description": "The parent resource type of the Custom Field. One of `case | client | company | expense | time | time_and_expense`."
+                    },
+                    "field_type": {
+                        "type": "string",
+                        "description": "The field type of the Custom Field. One of `short_text | long_text | numeric | boolean | date | list | currency`."
+                    },
+                    "list_options": {
+                        "type": "array",
+                        "description": "If `field_type` is specified as `list`, this field must be provided with an array of list options.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "option_value": {
+                                    "type": "string",
+                                    "description": "The name of the list option."
+                                }
+                            },
+                            "required": [
+                                "option_value"
+                            ]
+                        }
+                    }
+                },
+                "required": [
+                    "name",
+                    "parent_type",
+                    "field_type"
+                ]
+            },
+            "CustomFieldResponse": {
+                "title": "CustomFieldResponse",
+                "x-stoplight": {
+                    "id": "zunk090bxcgu1"
+                },
+                "type": "object",
+                "x-internal": false,
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "A unique identifier for the Custom Field."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "The name of the Custom Field."
+                    },
+                    "parent_type": {
+                        "type": "string",
+                        "description": "The parent resource type of the Custom Field. One of `case | client | company | expense | time | time_and_expense`."
+                    },
+                    "field_type": {
+                        "type": "string",
+                        "description": "The field type of the Custom Field. One of `short_text | long_text | numeric | boolean | date | list | currency`."
+                    },
+                    "list_options": {
+                        "type": "array",
+                        "description": "If `field_type` is specified as `list`, this field will be returned with an array of list options.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "key": {
+                                    "type": "string",
+                                    "description": "The unique key identifier for this list option."
+                                },
+                                "option": {
+                                    "type": "string",
+                                    "description": "The name of this list option."
+                                },
+                                "created_at": {
+                                    "type": "string",
+                                    "description": "An ISO 8601 timestamp of when the list option was created."
+                                },
+                                "updated_at": {
+                                    "type": "string",
+                                    "description": "An ISO 8601 timestamp of when the list option was last updated."
+                                }
+                            }
+                        }
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "description": "An ISO 8601 timestamp of when the Custom Field was created."
+                    },
+                    "updated_at": {
+                        "type": "string",
+                        "description": "An ISO 8601 timestamp of when the Custom Field was last updated."
+                    }
+                }
+            }
+        },
+        "headers": {
+            "Cases_PaginationCount": {
+                "description": "The total number of results.",
+                "schema": {
+                    "type": "number"
+                }
+            },
+            "Cases_PaginationLink": {
+                "description": "If there is another page of results, we provides you with the cursor to the next page using `page_token`. Please reference our pagination documentation for more info.",
+                "schema": {
+                    "type": "string"
+                }
+            }
+        }
+    }
+}

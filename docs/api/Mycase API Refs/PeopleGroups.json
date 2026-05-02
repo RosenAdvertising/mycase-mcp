@@ -1,0 +1,218 @@
+{
+    "openapi": "3.1.0",
+    "x-stoplight": {
+        "id": "8ni5dkogbrs3h"
+    },
+    "info": {
+        "title": "People Groups",
+        "version": "1.0",
+        "description": "People Groups API",
+        "contact": {
+            "name": "MyCase"
+        }
+    },
+    "servers": [
+        {
+            "url": "https://external-integrations.mycase.com"
+        }
+    ],
+    "paths": {
+        "/v1/people_groups": {
+            "parameters": [],
+            "get": {
+                "summary": "Get People Groups",
+                "tags": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "headers": {
+                            "Link": {
+                                "$ref": "#/components/headers/Cases_PaginationLink"
+                            },
+                            "Item-Count": {
+                                "$ref": "#/components/headers/Cases_PaginationCount"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/PeopleGroupResponse"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "operationId": "get-v1-people-groups",
+                "description": "Get all firm people groups viewable by the authorized user.",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/PageSize"
+                    },
+                    {
+                        "$ref": "#/components/parameters/FilterUpdatedAfter"
+                    }
+                ]
+            },
+            "post": {
+                "summary": "Create a People Group",
+                "operationId": "post-v1-people-groups",
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PeopleGroupResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "description": "Create a people group.",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PeopleGroupRequest"
+                            }
+                        }
+                    },
+                    "description": ""
+                }
+            }
+        },
+        "/v1/people_groups/{id}": {
+            "parameters": [
+                {
+                    "schema": {
+                        "type": "string"
+                    },
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "description": "The id of the people group you want to view or update."
+                }
+            ],
+            "put": {
+                "summary": "Update an Individual People Group",
+                "operationId": "put-v1-people-groups-id",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "description": "Allows you to edit a specfic people group, based on the authorized user/firm priviledges.",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PeopleGroupRequest"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "summary": "Delete an Individual People Group",
+                "operationId": "delete-v1-people-groups-id",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "description": "Allows you to delete a specfic people group, based on the authorized user/firm priviledges."
+            }
+        }
+    },
+    "components": {
+        "parameters": {
+            "FilterUpdatedAfter": {
+                "title": "FilterUpdatedAfterParam",
+                "name": "filter[updated_after]",
+                "in": "query",
+                "required": false,
+                "description": "Filters the response to return only resources that are created or updated after a specified date/time. ISO 8610 date format. Results are inclusive of the date/time entered. Can include time but does not need to.",
+                "schema": {
+                    "type": "string",
+                    "example": "?filter[updated_after]=2022-03-17T21:00:00Z"
+                }
+            },
+            "PageSize": {
+                "title": "PageSizeParam",
+                "name": "page_size",
+                "in": "query",
+                "required": false,
+                "schema": {
+                    "type": "number",
+                    "default": "25",
+                    "example": "?page_size=100",
+                    "maximum": 1000,
+                    "minimum": 1
+                },
+                "description": "The ability to specify the number of resources that are returned per response page."
+            }
+        },
+        "schemas": {
+            "PeopleGroupRequest": {
+                "title": "PeopleGroupRequest",
+                "x-stoplight": {
+                    "id": "o6tmoorun5rwx"
+                },
+                "type": "object",
+                "x-internal": false,
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "The name of the people group."
+                    }
+                },
+                "required": [
+                    "name"
+                ]
+            },
+            "PeopleGroupResponse": {
+                "title": "PeopleGroupResponse",
+                "x-stoplight": {
+                    "id": "2bdq6bag05izq"
+                },
+                "type": "object",
+                "x-internal": false,
+                "properties": {
+                    "id": {
+                        "type": "number",
+                        "description": "A unique identifier for the people group."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "The name of the people group."
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "description": "The date the people group was created in ISO 8601 date/time format. "
+                    },
+                    "updated_at": {
+                        "type": "string",
+                        "description": "The date the people group was updated in ISO 8601 date/time format. "
+                    }
+                }
+            }
+        },
+        "headers": {
+            "Cases_PaginationCount": {
+                "description": "The total number of results.",
+                "schema": {
+                    "type": "number"
+                }
+            },
+            "Cases_PaginationLink": {
+                "description": "If there is another page of results, we provides you with the cursor to the next page using `page_token`. Please reference our pagination documentation for more info.",
+                "schema": {
+                    "type": "string"
+                }
+            }
+        }
+    }
+}

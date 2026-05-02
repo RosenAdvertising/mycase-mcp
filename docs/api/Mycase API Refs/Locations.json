@@ -1,0 +1,281 @@
+{
+    "openapi": "3.1.0",
+    "x-stoplight": {
+        "id": "abk81yr3ewms7"
+    },
+    "info": {
+        "title": "Locations",
+        "version": "1.0",
+        "description": "Locations API",
+        "contact": {
+            "name": "MyCase"
+        }
+    },
+    "servers": [
+        {
+            "url": "https://external-integrations.mycase.com"
+        }
+    ],
+    "paths": {
+        "/v1/locations": {
+            "parameters": [],
+            "get": {
+                "summary": "Get Locations",
+                "tags": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "headers": {
+                            "Link": {
+                                "$ref": "#/components/headers/Cases_PaginationLink"
+                            },
+                            "Item-Count": {
+                                "$ref": "#/components/headers/Cases_PaginationCount"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/LocationResponse"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "operationId": "get-v1-locations",
+                "description": "Get all firm locations viewable by the authorized user.",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/PageSize"
+                    },
+                    {
+                        "$ref": "#/components/parameters/FilterUpdatedAfter"
+                    }
+                ]
+            },
+            "post": {
+                "summary": "Create a Location",
+                "operationId": "post-v1-locations",
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/LocationResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "description": "Create a location.",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/LocationRequest"
+                            }
+                        }
+                    },
+                    "description": ""
+                }
+            }
+        },
+        "/v1/locations/{id}": {
+            "parameters": [
+                {
+                    "schema": {
+                        "type": "string"
+                    },
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "description": "The id of the location you want to view or update."
+                }
+            ],
+            "put": {
+                "summary": "Update an Individual Location",
+                "operationId": "put-v1-locations-id",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "description": "Allows you to edit a specfic location, based on the authorized user/firm priviledges.",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/LocationRequest"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "summary": "Delete an Individual Location",
+                "operationId": "delete-v1-locations-id",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "description": "Allows you to delete a specfic location, based on the authorized user/firm priviledges."
+            }
+        }
+    },
+    "components": {
+        "parameters": {
+            "FilterUpdatedAfter": {
+                "title": "FilterUpdatedAfterParam",
+                "name": "filter[updated_after]",
+                "in": "query",
+                "required": false,
+                "description": "Filters the response to return only resources that are created or updated after a specified date/time. ISO 8610 date format. Results are inclusive of the date/time entered. Can include time but does not need to.",
+                "schema": {
+                    "type": "string",
+                    "example": "?filter[updated_after]=2022-03-17T21:00:00Z"
+                }
+            },
+            "PageSize": {
+                "title": "PageSizeParam",
+                "name": "page_size",
+                "in": "query",
+                "required": false,
+                "schema": {
+                    "type": "number",
+                    "default": "25",
+                    "example": "?page_size=100",
+                    "maximum": 1000,
+                    "minimum": 1
+                },
+                "description": "The ability to specify the number of resources that are returned per response page."
+            }
+        },
+        "schemas": {
+            "AddressNestedResponse": {
+                "title": "AddressNestedResponse",
+                "x-stoplight": {
+                    "id": "4behikc37n07n"
+                },
+                "type": "object",
+                "x-internal": false,
+                "properties": {
+                    "address1": {
+                        "type": "string"
+                    },
+                    "address2": {
+                        "type": "string"
+                    },
+                    "city": {
+                        "type": "string"
+                    },
+                    "state": {
+                        "type": "string"
+                    },
+                    "zip_code": {
+                        "type": "string"
+                    },
+                    "country": {
+                        "type": "string"
+                    }
+                }
+            },
+            "AddressRequest": {
+                "title": "AddressRequest",
+                "x-stoplight": {
+                    "id": "gdbr2fvdvigvj"
+                },
+                "type": "object",
+                "x-internal": false,
+                "description": "If you provide any address object then all address properties need to be included.",
+                "properties": {
+                    "address1": {
+                        "type": "string"
+                    },
+                    "address2": {
+                        "type": "string"
+                    },
+                    "city": {
+                        "type": "string"
+                    },
+                    "state": {
+                        "type": "string"
+                    },
+                    "zip_code": {
+                        "type": "string"
+                    },
+                    "country": {
+                        "type": "string"
+                    }
+                }
+            },
+            "LocationRequest": {
+                "title": "LocationRequest",
+                "x-stoplight": {
+                    "id": "0fqsnovhpcyqs"
+                },
+                "type": "object",
+                "x-internal": false,
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "The name of the location"
+                    },
+                    "address": {
+                        "$ref": "#/components/schemas/AddressRequest"
+                    }
+                },
+                "required": [
+                    "name"
+                ]
+            },
+            "LocationResponse": {
+                "title": "LocationResponse",
+                "x-stoplight": {
+                    "id": "q2ekca6qiuujv"
+                },
+                "type": "object",
+                "x-internal": false,
+                "properties": {
+                    "id": {
+                        "type": "number",
+                        "description": "A unique identifier for the location."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "The name of the location."
+                    },
+                    "address": {
+                        "$ref": "#/components/schemas/AddressNestedResponse"
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "description": "The date the location was created in ISO 8601 date/time format. "
+                    },
+                    "updated_at": {
+                        "type": "string",
+                        "description": "The date the location was updated in ISO 8601 date/time format. "
+                    }
+                }
+            }
+        },
+        "headers": {
+            "Cases_PaginationCount": {
+                "description": "The total number of results.",
+                "schema": {
+                    "type": "number"
+                }
+            },
+            "Cases_PaginationLink": {
+                "description": "If there is another page of results, we provides you with the cursor to the next page using `page_token`. Please reference our pagination documentation for more info.",
+                "schema": {
+                    "type": "string"
+                }
+            }
+        }
+    }
+}

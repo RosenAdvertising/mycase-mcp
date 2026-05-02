@@ -6,5 +6,6 @@ build/
 .venv/
 venv/
 .env
-*.json
 !.env.example
+__MACOSX/
+docs/api/__MACOSX/
