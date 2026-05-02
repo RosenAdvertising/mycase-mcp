@@ -35,7 +35,7 @@ def check_api():
         name = me.get("full_name") or me.get("name") or "unknown"
         print(f"✓ Authenticated as: {name}")
 
-        cases = client.list_cases(limit=5)
+        cases = client.list_cases(page_size=5)
         count = len(cases) if isinstance(cases, list) else len(cases.get("data", []))
         print(f"✓ Cases accessible: {count} returned (limit 5)")
 
