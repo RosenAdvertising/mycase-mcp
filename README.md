@@ -1,5 +1,9 @@
 # mycase-mcp
 
+[![PyPI version](https://img.shields.io/pypi/v/mycase-mcp.svg)](https://pypi.org/project/mycase-mcp/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 MCP server for [MyCase](https://www.mycase.com/) — gives Claude full access to your law firm's MyCase account.
 
 **112 tools. One setup command.**
