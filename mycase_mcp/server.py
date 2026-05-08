@@ -243,15 +243,15 @@ def create_task(name: str, priority: str, due_date: str, staff_id: int,
 
 @mcp.tool()
 def update_task(task_id: int, name: str = "", due_date: str = "",
-                completed: bool | None = None, priority: str = "") -> str:
-    """Update a task. completed: true to mark done. priority: Low | Medium | High."""
+                completed: str = "", priority: str = "") -> str:
+    """Update a task. completed: 'true' or 'false' to set completion status. priority: Low | Medium | High."""
     fields = {}
     if name:
         fields["name"] = name
     if due_date:
         fields["due_date"] = due_date
-    if completed is not None:
-        fields["completed"] = completed
+    if completed.lower() in ("true", "false"):
+        fields["completed"] = completed.lower() == "true"
     if priority:
         fields["priority"] = priority
     return json.dumps(MyCaseClient().update_task(task_id, **fields), indent=2)
@@ -368,9 +368,10 @@ def record_invoice_payment(invoice_id: int, amount: float, date: str,
 
 
 @mcp.tool()
-def list_invoice_payments(page_size: int = 25) -> str:
-    """List all invoice payments."""
-    return json.dumps(MyCaseClient().list_invoice_payments(page_size=page_size), indent=2)
+def list_invoice_payments(page_size: int = 25, status: str = "", payable_id: str = "") -> str:
+    """List invoice payments. status: pending|success|failure|error|timeout. payable_id: filter by invoice ID."""
+    return json.dumps(MyCaseClient().list_invoice_payments(
+        page_size=page_size, status=status or None, payable_id=payable_id or None), indent=2)
 
 
 # ── Notes ─────────────────────────────────────────────────────────────────────
@@ -716,9 +717,10 @@ def list_custom_fields() -> str:
 
 @mcp.tool()
 def create_custom_field(name: str, parent_type: str, field_type: str,
-                         list_options: list | None = None) -> str:
-    """Create a custom field. parent_type: Case|Client|Lead. field_type: text|date|list|checkbox|number."""
-    return json.dumps(MyCaseClient().create_custom_field(name, parent_type, field_type, list_options), indent=2)
+                         list_options: str = "") -> str:
+    """Create a custom field. parent_type: Case|Client|Lead. field_type: text|date|list|checkbox|number. list_options: comma-separated option values for list type fields (e.g. 'Option A,Option B,Option C')."""
+    opts = [v.strip() for v in list_options.split(",") if v.strip()] if list_options else None
+    return json.dumps(MyCaseClient().create_custom_field(name, parent_type, field_type, opts), indent=2)
 
 
 @mcp.tool()
@@ -816,13 +818,16 @@ def create_call(called_at: str, caller_name: str = "", caller_phone_number: str 
 @mcp.tool()
 def update_call(call_id: int, caller_name: str = "", caller_phone_number: str = "",
                 call_for: str = "", message: str = "", call_type: str = "",
-                resolved: bool | None = None) -> str:
-    """Update a call log entry."""
+                resolved: str = "") -> str:
+    """Update a call log entry. resolved: 'true' or 'false' to set resolved status."""
+    resolved_val = None
+    if resolved.lower() in ("true", "false"):
+        resolved_val = resolved.lower() == "true"
     return json.dumps(MyCaseClient().update_call(
         call_id, caller_name=caller_name or None,
         caller_phone_number=caller_phone_number or None,
         call_for=call_for or None, message=message or None,
-        call_type=call_type or None, resolved=resolved), indent=2)
+        call_type=call_type or None, resolved=resolved_val), indent=2)
 
 
 @mcp.tool()
@@ -860,9 +865,10 @@ def list_webhook_subscriptions() -> str:
 
 
 @mcp.tool()
-def create_webhook_subscription(model: str, url: str, actions: list) -> str:
-    """Create a webhook. model: resource type (Case, Client, etc.). actions: [created, updated, deleted]."""
-    return json.dumps(MyCaseClient().create_webhook_subscription(model, url, actions), indent=2)
+def create_webhook_subscription(model: str, url: str, actions: str) -> str:
+    """Create a webhook. model: resource type (case|client|company|event|lead|message). actions: comma-separated list of created|updated|deleted (e.g. 'created,updated')."""
+    action_list = [a.strip() for a in actions.split(",") if a.strip()]
+    return json.dumps(MyCaseClient().create_webhook_subscription(model, url, action_list), indent=2)
 
 
 @mcp.tool()

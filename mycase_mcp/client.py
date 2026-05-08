@@ -368,8 +368,13 @@ class MyCaseClient:
             body["notes"] = notes
         return self.post(f"/invoices/{invoice_id}/payments", body)
 
-    def list_invoice_payments(self, page_size=25):
-        return self.get("/invoice_payments", {"page_size": page_size})
+    def list_invoice_payments(self, page_size=25, status=None, payable_id=None):
+        params = {"page_size": page_size}
+        if status:
+            params["filter[status]"] = status
+        if payable_id:
+            params["filter[payable_id]"] = payable_id
+        return self.get("/invoice_payments", params)
 
     # ── Notes ─────────────────────────────────────────────────────────────────
 

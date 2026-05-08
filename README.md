@@ -92,24 +92,27 @@ Tokens are refreshed automatically on expiry.
 | Category | Tools |
 |---|---|
 | Identity | who_am_i, get_firm, list_staff, get_staff_member |
-| Cases | list_cases, get_case, create_case, update_case, delete_case, list_cases_for_client, add_client_to_case, add_company_to_case, remove_client_from_case |
-| Case Reference | list_case_stages, list_practice_areas, list_case_roles |
-| Clients | list_clients, get_client, create_client, update_client |
-| Companies | list_companies, get_company, create_company, update_company |
-| Tasks | list_tasks, get_task, create_task, update_task |
-| Events | list_events, get_event, create_event, update_event, delete_event |
-| Time Entries | list_time_entries, get_time_entry, create_time_entry, update_time_entry, delete_time_entry |
-| Expenses | list_expenses, get_expense, create_expense, update_expense, delete_expense |
-| Invoices | list_invoices, get_invoice, create_invoice, update_invoice, delete_invoice, list_invoice_line_items, create_invoice_line_item, update_invoice_line_item, delete_invoice_line_item, record_invoice_payment, list_invoice_payments |
-| Notes | list_notes, get_note, create_note, update_note, delete_note |
-| Documents | list_documents, get_document, create_document, delete_document, list_document_versions, get_document_data, upload_document_version |
-| Folders | list_folders, get_folder, create_folder, update_folder, delete_folder |
-| Leads | list_leads, get_lead, create_lead, update_lead, delete_lead |
-| Calls | list_calls, get_call, create_call, update_call, delete_call |
-| Message Threads | list_message_threads, get_message_thread, create_message_thread, list_thread_messages, create_thread_message |
-| Custom Fields | list_custom_fields, get_custom_field, create_custom_field, update_custom_field, delete_custom_field, list_custom_field_options, create_custom_field_option, delete_custom_field_option |
-| Reference | list_locations, list_referral_sources, list_people_groups, get_people_group, create_people_group, update_people_group, delete_people_group, add_person_to_group, remove_person_from_group |
-| Webhooks | list_webhooks, get_webhook, create_webhook, update_webhook, delete_webhook |
+| Cases | list_cases, get_case, create_case, update_case, delete_case, list_cases_for_client, add_client_to_case, add_company_to_case, add_staff_to_case |
+| Clients | list_clients, get_client, create_client, update_client, delete_client, list_client_notes, list_client_message_threads |
+| Companies | list_companies, get_company, create_company, update_company, delete_company, add_client_to_company |
+| Tasks | list_tasks, create_task, update_task, delete_task, assign_task_to_staff |
+| Events | list_events, create_event, update_event, delete_event, add_staff_to_event |
+| Time Entries | list_time_entries, get_time_entry, create_time_entry, delete_time_entry |
+| Invoices | list_invoices, delete_invoice, record_invoice_payment, list_invoice_payments |
+| Expenses | list_expenses, get_expense, create_expense, delete_expense |
+| Notes | get_note, update_note, delete_note, list_case_notes, create_case_note, create_client_note, create_company_note |
+| Documents | list_documents, get_document, update_document, delete_document, list_case_documents, list_document_versions, list_all_document_versions, get_case_folder, upload_document, upload_case_document, upload_document_version, get_document_data, get_document_version_data, delete_document_version |
+| Folders | list_folder_documents, list_folder_subfolders, create_case_subfolder |
+| Leads | list_leads, get_lead, create_lead, update_lead |
+| Calls | list_calls, create_call, update_call, delete_call |
+| Messaging | create_message_thread, create_case_message_thread, post_message |
+| Custom Fields | list_custom_fields, get_custom_field, create_custom_field, delete_custom_field, list_custom_field_options, create_custom_field_option, update_custom_field_option, delete_custom_field_option |
+| Case Reference | list_case_stages, create_case_stage, update_case_stage, delete_case_stage, list_case_roles |
+| Locations | list_locations, create_location, update_location, delete_location |
+| Referral Sources | list_referral_sources, create_referral_source |
+| People Groups | list_people_groups, create_people_group, update_people_group, delete_people_group |
+| Practice Areas | list_practice_areas, create_practice_area, update_practice_area, delete_practice_area |
+| Webhooks | list_webhook_subscriptions, create_webhook_subscription, delete_webhook_subscription |
 
 ## License
 
