@@ -32,6 +32,23 @@ CLIENT_ID = os.environ.get("MYCASE_CLIENT_ID", "")
 CLIENT_SECRET = os.environ.get("MYCASE_CLIENT_SECRET", "")
 
 
+def _retry_after_seconds(resp, default=10):
+    try:
+        return int(resp.headers.get("Retry-After", default))
+    except (TypeError, ValueError):
+        return default
+
+
+def _json_response(resp):
+    try:
+        return resp.json()
+    except ValueError:
+        raise RuntimeError(
+            f"MyCase API returned non-JSON response ({resp.status_code}): "
+            f"{resp.text[:200]}"
+        )
+
+
 class TokenManager:
     def __init__(self):
         self.token_file = CONFIG_DIR / "tokens.json"
@@ -61,6 +78,8 @@ class TokenManager:
     def refresh(self):
         if not self.refresh_token:
             raise RuntimeError("No refresh token. Run: mycase-mcp-setup")
+        if not CLIENT_ID or not CLIENT_SECRET:
+            raise RuntimeError("MYCASE_CLIENT_ID and MYCASE_CLIENT_SECRET are required. Run: mycase-mcp-setup")
         resp = requests.post(TOKEN_URL, data={
             "client_id": CLIENT_ID,
             "client_secret": CLIENT_SECRET,
@@ -68,7 +87,7 @@ class TokenManager:
             "refresh_token": self.refresh_token,
         })
         if resp.status_code == 200:
-            new_tokens = resp.json()
+            new_tokens = _json_response(resp)
             if "refresh_token" not in new_tokens:
                 new_tokens["refresh_token"] = self.refresh_token
             new_tokens["refreshed_at"] = datetime.now(timezone.utc).isoformat()
@@ -80,6 +99,8 @@ class TokenManager:
 class MyCaseClient:
     def __init__(self):
         self.tm = TokenManager()
+        if not self.tm.access_token and not self.tm.refresh_token:
+            raise RuntimeError("No MyCase OAuth tokens found. Run: mycase-mcp-setup")
         self.session = requests.Session()
         self.session.headers.update({
             "Authorization": f"Bearer {self.tm.access_token}",
@@ -97,7 +118,7 @@ class MyCaseClient:
             return self._request(method, path, params=params, json_body=json_body, retry=False)
 
         if resp.status_code == 429 and _rate_retries < 3:
-            retry_after = int(resp.headers.get("Retry-After", 10))
+            retry_after = _retry_after_seconds(resp)
             print(f"Rate limited. Waiting {retry_after}s...", file=sys.stderr)
             time.sleep(retry_after)
             return self._request(method, path, params=params, json_body=json_body,
@@ -118,7 +139,7 @@ class MyCaseClient:
         if not resp.ok:
             raise RuntimeError(f"MyCase API error {resp.status_code}: {resp.text[:400]}")
 
-        return resp.json()
+        return _json_response(resp)
 
     def get(self, path, params=None):
         return self._request("GET", path, params=params)
