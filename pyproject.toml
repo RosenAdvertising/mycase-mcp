@@ -27,3 +27,10 @@ Issues = "https://github.com/rosenadvertising/mycase-mcp/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["mycase_mcp"]
+
+[tool.pyright]
+include = ["."]
+exclude = ["**/node_modules", "**/__pycache__", ".venv", "venv", "dist", "build"]
+typeCheckingMode = "basic"
+reportMissingImports = "warning"
+reportMissingTypeStubs = false
