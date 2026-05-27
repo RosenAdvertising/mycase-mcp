@@ -1,0 +1,216 @@
+{
+  "openapi": "3.1.0",
+  "x-stoplight": {
+    "id": "4k3hos0s0wbu4"
+  },
+  "info": {
+    "title": "Practice Areas",
+    "version": "1.0",
+    "description": "Practice Areas API",
+    "contact": {
+      "name": "MyCase"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://external-integrations.mycase.com"
+    }
+  ],
+  "paths": {
+    "/v1/practice_areas": {
+      "parameters": [],
+      "get": {
+        "summary": "Get Practice Areas",
+        "tags": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Link": {
+                "$ref": "#/components/headers/Cases_PaginationLink"
+              },
+              "Item-Count": {
+                "$ref": "#/components/headers/Cases_PaginationCount"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PracticeAreaResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "get-v1-practice-areas",
+        "description": "Get all firm practice areas viewable by the authorized user.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PageSize"
+          },
+          {
+            "$ref": "#/components/parameters/FilterUpdatedAfter"
+          }
+        ]
+      },
+      "post": {
+        "summary": "Create a Practice Area",
+        "operationId": "post-v1-practice-areas",
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PracticeAreaResponse"
+                }
+              }
+            }
+          }
+        },
+        "description": "Create a practice area.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PracticeAreaRequest"
+              }
+            }
+          },
+          "description": ""
+        }
+      }
+    },
+    "/v1/practice_areas/{id}": {
+      "parameters": [
+        {
+          "schema": {
+            "type": "string"
+          },
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "The id of the practice area you want to view or update."
+        }
+      ],
+      "put": {
+        "summary": "Update an Individual Practice Area",
+        "operationId": "put-v1-practice-areas-id",
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "description": "Allows you to edit a specific practice area, based on the authorized user/firm privileges.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PracticeAreaRequest"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete an Individual Practice Area",
+        "operationId": "delete-v1-practice-areas-id",
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "description": "Allows you to delete a specific practice area, based on the authorized user/firm privileges."
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "FilterUpdatedAfter": {
+        "title": "FilterUpdatedAfterParam",
+        "name": "filter[updated_after]",
+        "in": "query",
+        "required": false,
+        "description": "Filters the response to return only resources that are created or updated after a specified date/time. ISO 8610 date format. Results are inclusive of the date/time entered. Can include time but does not need to.",
+        "schema": {
+          "type": "string",
+          "example": "?filter[updated_after]=2022-03-17T21:00:00Z"
+        }
+      },
+      "PageSize": {
+        "title": "PageSizeParam",
+        "name": "page_size",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "number",
+          "default": "25",
+          "example": "?page_size=100",
+          "maximum": 1000,
+          "minimum": 1
+        },
+        "description": "The ability to specify the number of resources that are returned per response page."
+      }
+    },
+    "schemas": {
+      "PracticeAreaRequest": {
+        "title": "PracticeAreaRequest",
+        "x-stoplight": {
+          "id": "p9f63mvg6qglb"
+        },
+        "type": "object",
+        "x-internal": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The name of the practice area."
+          }
+        },
+        "required": ["name"]
+      },
+      "PracticeAreaResponse": {
+        "title": "PracticeAreaResponse",
+        "x-stoplight": {
+          "id": "zzivdho4u1mz8"
+        },
+        "type": "object",
+        "x-internal": false,
+        "properties": {
+          "id": {
+            "type": "number",
+            "description": "A unique identifier for the practice area."
+          },
+          "name": {
+            "type": "string",
+            "description": "The name of the practice area."
+          },
+          "created_at": {
+            "type": "string",
+            "description": "The date the practice area was created in ISO 8601 date/time format. "
+          },
+          "updated_at": {
+            "type": "string",
+            "description": "The date the practice area was updated in ISO 8601 date/time format. "
+          }
+        }
+      }
+    },
+    "headers": {
+      "Cases_PaginationCount": {
+        "description": "The total number of results.",
+        "schema": {
+          "type": "number"
+        }
+      },
+      "Cases_PaginationLink": {
+        "description": "If there is another page of results, we provides you with the cursor to the next page using `page_token`. Please reference our pagination documentation for more info.",
+        "schema": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

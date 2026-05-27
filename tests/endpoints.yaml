@@ -1,0 +1,844 @@
+# MyCase MCP — tool registry
+# BASE_URL: https://external-integrations.mycase.com/v1
+# 112 tools across identity, cases, clients, companies, tasks, events,
+# time entries, invoices, notes, documents, leads, messaging, reference data,
+# expenses, calls, folders, and webhooks.
+
+tools:
+  # ── Identity ────────────────────────────────────────────────────────────────
+
+  - name: who_am_i
+    method: GET
+    path: /me
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: get_firm
+    method: GET
+    path: /firm
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: list_staff
+    method: GET
+    path: /staff
+    required_params: []
+    optional_params: [page_size]
+    requested_fields: []
+
+  - name: get_staff_member
+    method: GET
+    path: /staff/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  # ── Cases ────────────────────────────────────────────────────────────────────
+
+  - name: list_cases
+    method: GET
+    path: /cases
+    required_params: []
+    optional_params: [status, page_size]
+    requested_fields: []
+
+  - name: get_case
+    method: GET
+    path: /cases/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: create_case
+    method: POST
+    path: /cases
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: update_case
+    method: PUT
+    path: /cases/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: delete_case
+    method: DELETE
+    path: /cases/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: list_cases_for_client
+    method: GET
+    path: /clients/{id}/cases
+    required_params: []
+    optional_params: [page_size]
+    requested_fields: []
+
+  - name: add_client_to_case
+    method: POST
+    path: /cases/{id}/relationships/clients
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: add_company_to_case
+    method: POST
+    path: /cases/{id}/relationships/companies
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: add_staff_to_case
+    method: POST
+    path: /cases/{id}/relationships/staff
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  # ── Clients ──────────────────────────────────────────────────────────────────
+
+  - name: list_clients
+    method: GET
+    path: /clients
+    required_params: []
+    optional_params:
+      [
+        email,
+        first_name,
+        last_name,
+        cell_phone_number,
+        updated_after,
+        page_size,
+      ]
+    requested_fields: []
+
+  - name: get_client
+    method: GET
+    path: /clients/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: create_client
+    method: POST
+    path: /clients
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: update_client
+    method: PUT
+    path: /clients/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: delete_client
+    method: DELETE
+    path: /clients/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: list_client_notes
+    method: GET
+    path: /clients/{id}/notes
+    required_params: []
+    optional_params: [page_size]
+    requested_fields: []
+
+  - name: list_client_message_threads
+    method: GET
+    path: /clients/{id}/message_threads
+    required_params: []
+    optional_params: [page_size]
+    requested_fields: []
+
+  # ── Companies ────────────────────────────────────────────────────────────────
+
+  - name: list_companies
+    method: GET
+    path: /companies
+    required_params: []
+    optional_params: [name, email, updated_after, page_size]
+    requested_fields: []
+
+  - name: get_company
+    method: GET
+    path: /companies/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: create_company
+    method: POST
+    path: /companies
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: update_company
+    method: PUT
+    path: /companies/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: delete_company
+    method: DELETE
+    path: /companies/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: add_client_to_company
+    method: POST
+    path: /companies/{id}/relationships/clients
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  # ── Tasks ────────────────────────────────────────────────────────────────────
+
+  - name: list_tasks
+    method: GET
+    path: /tasks
+    required_params: []
+    optional_params: [updated_after, page_size]
+    requested_fields: []
+
+  - name: create_task
+    method: POST
+    path: /tasks
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: update_task
+    method: PUT
+    path: /tasks/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: delete_task
+    method: DELETE
+    path: /tasks/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: assign_task_to_staff
+    method: POST
+    path: /tasks/{id}/relationships/staff
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  # ── Events ───────────────────────────────────────────────────────────────────
+
+  - name: list_events
+    method: GET
+    path: /events
+    required_params: []
+    optional_params: [case_id, start_date, end_date, page_size]
+    requested_fields: []
+
+  - name: create_event
+    method: POST
+    path: /events
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: update_event
+    method: PUT
+    path: /events/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: delete_event
+    method: DELETE
+    path: /events/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: add_staff_to_event
+    method: POST
+    path: /events/{id}/relationships/staff
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  # ── Time Entries ─────────────────────────────────────────────────────────────
+
+  - name: list_time_entries
+    method: GET
+    path: /time_entries
+    required_params: []
+    optional_params: [updated_after, page_size]
+    requested_fields: []
+
+  - name: get_time_entry
+    method: GET
+    path: /time_entries/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: create_time_entry
+    method: POST
+    path: /time_entries
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: delete_time_entry
+    method: DELETE
+    path: /time_entries/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  # ── Invoices ─────────────────────────────────────────────────────────────────
+
+  - name: list_invoices
+    method: GET
+    path: /invoices
+    required_params: []
+    optional_params: [case_id, status, page_size]
+    requested_fields: []
+
+  - name: record_invoice_payment
+    method: POST
+    path: /invoices/{id}/payments
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: list_invoice_payments
+    method: GET
+    path: /invoice_payments
+    required_params: []
+    optional_params: [status, payable_id, page_size]
+    requested_fields: []
+
+  # ── Notes ────────────────────────────────────────────────────────────────────
+
+  - name: get_note
+    method: GET
+    path: /notes/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: update_note
+    method: PUT
+    path: /notes/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: delete_note
+    method: DELETE
+    path: /notes/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: list_case_notes
+    method: GET
+    path: /cases/{id}/notes
+    required_params: []
+    optional_params: [page_size]
+    requested_fields: []
+
+  - name: create_case_note
+    method: POST
+    path: /cases/{id}/notes
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: create_client_note
+    method: POST
+    path: /clients/{id}/notes
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: create_company_note
+    method: POST
+    path: /companies/{id}/notes
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  # ── Documents ────────────────────────────────────────────────────────────────
+
+  - name: list_documents
+    method: GET
+    path: /documents
+    required_params: []
+    optional_params: [case_id, page_size]
+    requested_fields: []
+
+  - name: get_document
+    method: GET
+    path: /documents/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: update_document
+    method: PUT
+    path: /documents/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: delete_document
+    method: DELETE
+    path: /documents/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: list_case_documents
+    method: GET
+    path: /cases/{id}/documents
+    required_params: []
+    optional_params: [page_size]
+    requested_fields: []
+
+  - name: list_document_versions
+    method: GET
+    path: /documents/{id}/versions
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: get_case_folder
+    method: GET
+    path: /cases/{id}/folder
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: upload_document
+    method: POST
+    path: /documents
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: upload_case_document
+    method: POST
+    path: /cases/{id}/documents
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: list_all_document_versions
+    method: GET
+    path: /document_versions
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: upload_document_version
+    method: POST
+    path: /documents/{id}/versions
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: get_document_data
+    method: GET
+    path: /documents/{id}/data
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: get_document_version_data
+    method: GET
+    path: /documents/{id}/versions/{version_number}/data
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: delete_document_version
+    method: DELETE
+    path: /documents/{id}/versions/{version_number}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  # ── Leads ────────────────────────────────────────────────────────────────────
+
+  - name: list_leads
+    method: GET
+    path: /leads
+    required_params: []
+    optional_params: [status, page_size]
+    requested_fields: []
+
+  - name: get_lead
+    method: GET
+    path: /leads/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: create_lead
+    method: POST
+    path: /leads
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: update_lead
+    method: PUT
+    path: /leads/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  # ── Messaging ────────────────────────────────────────────────────────────────
+
+  - name: create_message_thread
+    method: POST
+    path: /message_threads
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: create_case_message_thread
+    method: POST
+    path: /cases/{id}/message_threads
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: post_message
+    method: POST
+    path: /message_threads/{id}/messages
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  # ── Reference Data — Case Stages ─────────────────────────────────────────────
+
+  - name: list_case_stages
+    method: GET
+    path: /case_stages
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: create_case_stage
+    method: POST
+    path: /case_stages
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: update_case_stage
+    method: PUT
+    path: /case_stages/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: delete_case_stage
+    method: DELETE
+    path: /case_stages/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  # ── Reference Data — Case Roles ──────────────────────────────────────────────
+
+  - name: list_case_roles
+    method: GET
+    path: /case_roles
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  # ── Reference Data — Referral Sources ────────────────────────────────────────
+
+  - name: list_referral_sources
+    method: GET
+    path: /referral_sources
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: create_referral_source
+    method: POST
+    path: /referral_sources
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  # ── Reference Data — Locations ───────────────────────────────────────────────
+
+  - name: list_locations
+    method: GET
+    path: /locations
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: create_location
+    method: POST
+    path: /locations
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: update_location
+    method: PUT
+    path: /locations/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: delete_location
+    method: DELETE
+    path: /locations/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  # ── Reference Data — People Groups ───────────────────────────────────────────
+
+  - name: list_people_groups
+    method: GET
+    path: /people_groups
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: create_people_group
+    method: POST
+    path: /people_groups
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: update_people_group
+    method: PUT
+    path: /people_groups/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: delete_people_group
+    method: DELETE
+    path: /people_groups/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  # ── Reference Data — Practice Areas ──────────────────────────────────────────
+
+  - name: list_practice_areas
+    method: GET
+    path: /practice_areas
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: create_practice_area
+    method: POST
+    path: /practice_areas
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: update_practice_area
+    method: PUT
+    path: /practice_areas/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: delete_practice_area
+    method: DELETE
+    path: /practice_areas/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  # ── Reference Data — Custom Fields ───────────────────────────────────────────
+
+  - name: list_custom_fields
+    method: GET
+    path: /custom_fields
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: create_custom_field
+    method: POST
+    path: /custom_fields
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: get_custom_field
+    method: GET
+    path: /custom_fields/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: delete_custom_field
+    method: DELETE
+    path: /custom_fields/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: list_custom_field_options
+    method: GET
+    path: /custom_fields/{id}/list_options
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: create_custom_field_option
+    method: POST
+    path: /custom_fields/{id}/list_options
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: update_custom_field_option
+    method: PUT
+    path: /custom_fields/{id}/list_options/{key}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: delete_custom_field_option
+    method: DELETE
+    path: /custom_fields/{id}/list_options/{key}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  # ── Expenses ─────────────────────────────────────────────────────────────────
+
+  - name: list_expenses
+    method: GET
+    path: /expenses
+    required_params: []
+    optional_params: [updated_after, page_size]
+    requested_fields: []
+
+  - name: get_expense
+    method: GET
+    path: /expenses/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: create_expense
+    method: POST
+    path: /expenses
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: delete_expense
+    method: DELETE
+    path: /expenses/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  # ── Calls ────────────────────────────────────────────────────────────────────
+
+  - name: list_calls
+    method: GET
+    path: /calls
+    required_params: []
+    optional_params: [updated_after, page_size]
+    requested_fields: []
+
+  - name: create_call
+    method: POST
+    path: /calls
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: update_call
+    method: PUT
+    path: /calls/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: delete_call
+    method: DELETE
+    path: /calls/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  # ── Folders ──────────────────────────────────────────────────────────────────
+
+  - name: list_folder_documents
+    method: GET
+    path: /folders/{id}/documents
+    required_params: []
+    optional_params: [page_size]
+    requested_fields: []
+
+  - name: list_folder_subfolders
+    method: GET
+    path: /folders/{id}/subfolders
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: create_case_subfolder
+    method: POST
+    path: /cases/{id}/subfolders
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  # ── Webhooks ─────────────────────────────────────────────────────────────────
+
+  - name: list_webhook_subscriptions
+    method: GET
+    path: /webhooks/subscriptions
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: create_webhook_subscription
+    method: POST
+    path: /webhooks/subscriptions
+    required_params: []
+    optional_params: []
+    requested_fields: []
+
+  - name: delete_webhook_subscription
+    method: DELETE
+    path: /webhooks/subscriptions/{id}
+    required_params: []
+    optional_params: []
+    requested_fields: []

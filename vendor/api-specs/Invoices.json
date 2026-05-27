@@ -1,0 +1,369 @@
+{
+  "openapi": "3.1.0",
+  "x-stoplight": {
+    "id": "sdiodtg8282p5"
+  },
+  "info": {
+    "title": "Invoices",
+    "version": "1.0",
+    "description": "Invoices API",
+    "contact": {
+      "name": "MyCase"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://external-integrations.mycase.com"
+    }
+  ],
+  "paths": {
+    "/v1/invoices": {
+      "get": {
+        "summary": "Get Invoices",
+        "tags": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Link": {
+                "$ref": "#/components/headers/Cases_PaginationLink"
+              },
+              "Item-Count": {
+                "$ref": "#/components/headers/Cases_PaginationCount"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InvoiceResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "get-v1-invoices",
+        "description": "Get firm invoices viewable by the authorized user. By default, only invoices with \"Online Payments Enabled\" will be returned.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PageSize"
+          },
+          {
+            "$ref": "#/components/parameters/FilterUpdatedAfter"
+          },
+          {
+            "title": "OnlyAllowedOnlinePayments",
+            "name": "only_allowed_online_payments",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": "true",
+              "example": "?only_allowed_online_payments=true"
+            },
+            "description": "Whether or not to exclude invoices that do not allow online payments. Default is true."
+          }
+        ]
+      },
+      "parameters": []
+    },
+    "/v1/invoices/{id}": {
+      "delete": {
+        "summary": "Delete an Individual Invoice",
+        "operationId": "delete-v1-invoices-id",
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "description": "Allows you to delete a specific invoice, based on the authorized user/firm privileges."
+      },
+      "parameters": [
+        {
+          "schema": {
+            "type": "string"
+          },
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "The id of the invoice you want to view or update."
+        }
+      ]
+    },
+    "/v1/invoices/{id}/payments": {
+      "parameters": [
+        {
+          "schema": {
+            "type": "string"
+          },
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "The id of the invoice to record a payment for."
+        }
+      ],
+      "post": {
+        "summary": "Record a Payment on an Invoice",
+        "operationId": "post-v1-invoices-id-record-payment",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoicePaymentResponse"
+                }
+              }
+            }
+          }
+        },
+        "description": "Record an individual payment on an invoice.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvoicePaymentRequest"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "FilterUpdatedAfter": {
+        "title": "FilterUpdatedAfterParam",
+        "name": "filter[updated_after]",
+        "in": "query",
+        "required": false,
+        "description": "Filters the response to return only resources that are created or updated after a specified date/time. ISO 8610 date format. Results are inclusive of the date/time entered. Can include time but does not need to.",
+        "schema": {
+          "type": "string",
+          "example": "?filter[updated_after]=2022-03-17T21:00:00Z"
+        }
+      },
+      "PageSize": {
+        "title": "PageSizeParam",
+        "name": "page_size",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "number",
+          "default": "25",
+          "example": "?page_size=100",
+          "maximum": 1000,
+          "minimum": 1
+        },
+        "description": "The ability to specify the number of resources that are returned per response page."
+      }
+    },
+    "schemas": {
+      "CaseNestedResponse": {
+        "title": "CaseNestedResponse",
+        "x-stoplight": {
+          "id": "hnstwxngt9tpt"
+        },
+        "type": ["object", "null"],
+        "x-internal": false,
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "The ID of the case."
+          }
+        }
+      },
+      "InvoicePaymentRequest": {
+        "title": "InvoicePaymentRequest",
+        "x-stoplight": {
+          "id": "r8qwscyq3gl0o"
+        },
+        "type": "object",
+        "x-internal": false,
+        "properties": {
+          "amount": {
+            "type": "number",
+            "description": "The amount paid on the invoice."
+          },
+          "date": {
+            "type": "string",
+            "description": "The date of the payment. Must be in ISO 8601 date format."
+          },
+          "notes": {
+            "type": "string",
+            "description": "Any notes associated with this payment. Recommended to specify where this payment came from."
+          }
+        },
+        "required": ["amount", "date"]
+      },
+      "InvoicePaymentResponse": {
+        "title": "InvoicePaymentResponse",
+        "x-stoplight": {
+          "id": "rxrj4pzn12oki"
+        },
+        "type": "object",
+        "x-internal": false,
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "amount": {
+            "type": "number",
+            "description": "The amount of the payment."
+          },
+          "notes": {
+            "type": "string",
+            "description": "The notes associated with this payment."
+          },
+          "date": {
+            "type": ["string", "null"],
+            "description": "The date recorded for the payment in ISO 8601 date format."
+          },
+          "invoice": {
+            "type": "object",
+            "description": "The invoice that this payment is associated with.",
+            "properties": {
+              "id": {
+                "type": "integer"
+              }
+            }
+          },
+          "status": {
+            "type": "string",
+            "description": "The status of the payment. One of `pending | success | failure | error | timeout`."
+          },
+          "transaction_type": {
+            "type": ["string", "null"],
+            "description": "The type of transaction that this payment is associated with."
+          },
+          "case": {
+            "$ref": "#/components/schemas/CaseNestedResponse"
+          },
+          "account_name": {
+            "type": ["string", "null"],
+            "description": "The name of the account that this payment is associated with."
+          },
+          "attorney": {
+            "type": ["object", "null"],
+            "description": "The attorney who created the invoices associated with this payment.",
+            "properties": {
+              "id": {
+                "type": "integer"
+              }
+            }
+          },
+          "client": {
+            "type": ["object", "null"],
+            "description": "The payer of the invoices associated with this payment.",
+            "properties": {
+              "id": {
+                "type": "integer"
+              }
+            }
+          },
+          "invoice_number": {
+            "type": "string",
+            "description": "The invoice number that this payment is associated with."
+          },
+          "created_at": {
+            "type": "string",
+            "description": "The date the invoice payment was created in ISO 8601 date/time format. "
+          },
+          "updated_at": {
+            "type": "string",
+            "description": "The date the invoice payment was updated in ISO 8601 date/time format. "
+          }
+        }
+      },
+      "InvoiceResponse": {
+        "title": "InvoiceResponse",
+        "x-stoplight": {
+          "id": "pgdkthvnjfapb"
+        },
+        "type": "object",
+        "x-internal": false,
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "invoice_date": {
+            "type": "string",
+            "description": "The invoiced date in ISO 8601 date format."
+          },
+          "invoice_number": {
+            "type": "string",
+            "description": "The invoiced number in string format."
+          },
+          "due_date": {
+            "type": "string",
+            "description": "The due date for the invoice in ISO 8601 date format."
+          },
+          "total_amount": {
+            "type": "number",
+            "description": "The total amount due on the invoice."
+          },
+          "paid_amount": {
+            "type": "number",
+            "description": "The total amount already paid on the invoice."
+          },
+          "case": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              }
+            }
+          },
+          "bank_account": {
+            "type": "object",
+            "description": "The bank account associated with this invoice.",
+            "properties": {
+              "name": {
+                "type": "string",
+                "example": "Trust Account"
+              },
+              "account_type": {
+                "type": "string",
+                "example": "trust"
+              }
+            }
+          },
+          "view_url": {
+            "type": "string",
+            "description": "A URL where the client can view this invoice."
+          },
+          "allow_online_payments": {
+            "type": "boolean",
+            "description": "Whether or not online payments are allowed for this invoice."
+          },
+          "status": {
+            "type": "string",
+            "description": "The status of this invoice. One of `overdue | paid | partial | draft | unsent | sent`."
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "headers": {
+      "Cases_PaginationCount": {
+        "description": "The total number of results.",
+        "schema": {
+          "type": "number"
+        }
+      },
+      "Cases_PaginationLink": {
+        "description": "If there is another page of results, we provides you with the cursor to the next page using `page_token`. Please reference our pagination documentation for more info.",
+        "schema": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

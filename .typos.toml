@@ -1,0 +1,9 @@
+[files]
+# Vendor-provided OpenAPI spec files contain auto-generated example IDs with
+# character sequences that typos misidentifies as misspellings.
+extend-exclude = ["vendor/api-specs/", "tests/openapi-merged.json"]
+
+[default.extend-words]
+# Auto-generated example IDs in vendor OpenAPI specs contain "ot" sequences
+# that typos flags as misspellings. Mark as intentional.
+ot = "ot"

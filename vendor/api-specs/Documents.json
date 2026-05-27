@@ -1,0 +1,761 @@
+{
+  "openapi": "3.1.0",
+  "x-stoplight": {
+    "id": "52bvra1vj74sr"
+  },
+  "info": {
+    "title": "Documents",
+    "version": "1.0",
+    "description": "Documents API",
+    "contact": {
+      "name": "MyCase"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://external-integrations.mycase.com"
+    }
+  ],
+  "paths": {
+    "/v1/documents": {
+      "get": {
+        "summary": "Get Documents",
+        "tags": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Link": {
+                "$ref": "#/components/headers/paginationLink"
+              },
+              "Item-Count": {
+                "$ref": "#/components/headers/paginationCount"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DocumentResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "get-v1-documents",
+        "description": "Get all firm documents viewable by the authorized user.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PageSize"
+          },
+          {
+            "$ref": "#/components/parameters/FilterUpdatedAfter"
+          }
+        ]
+      },
+      "post": {
+        "summary": "Create a Firm Document",
+        "operationId": "post-v1-documents",
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentPostResponse"
+                }
+              }
+            }
+          }
+        },
+        "description": "Create an individual document not associated with a case.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FirmDocumentRequest"
+              }
+            }
+          }
+        }
+      },
+      "parameters": []
+    },
+    "/v1/cases/{id}/documents": {
+      "parameters": [
+        {
+          "schema": {
+            "type": "string"
+          },
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "The id of the case you want to get / add documents from / to."
+        }
+      ],
+      "get": {
+        "summary": "Get All Documents for a Case",
+        "tags": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Link": {
+                "$ref": "#/components/headers/paginationLink"
+              },
+              "Item-Count": {
+                "$ref": "#/components/headers/paginationCount"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DocumentResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "get-v1-cases-id-documents",
+        "description": "Get all documents associated with a specific case.",
+        "parameters": []
+      },
+      "post": {
+        "summary": "Create a Document for a Case",
+        "operationId": "post-v1-cases-id-documents",
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentPostResponse"
+                }
+              }
+            }
+          }
+        },
+        "description": "Create a document for a specified case.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/document_versions": {
+      "get": {
+        "summary": "Get all Firm Document Versions",
+        "tags": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Link": {
+                "$ref": "#/components/headers/paginationLink"
+              },
+              "Item-Count": {
+                "$ref": "#/components/headers/paginationCount"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DocumentVersionResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "get-v1-document_versions",
+        "description": "Get all firm document versions viewable by the authorized user.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PageSize"
+          },
+          {
+            "$ref": "#/components/parameters/FilterUpdatedAfter"
+          }
+        ]
+      },
+      "parameters": []
+    },
+    "/v1/documents/{id}": {
+      "parameters": [
+        {
+          "schema": {
+            "type": "string"
+          },
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "The id of the document you want to view or update."
+        }
+      ],
+      "get": {
+        "summary": "Get an Individual Document",
+        "tags": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentResponse"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "get-v1-documents-id",
+        "description": "Allows you to view a specific document, based on the authorized user/firm privileges.",
+        "parameters": []
+      },
+      "put": {
+        "summary": "Update an Individual Document",
+        "operationId": "put-v1-documents-id",
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "description": "Allows you to edit a specific document, based on the authorized user/firm privileges.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FirmDocumentRequest"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete an Individual Document",
+        "operationId": "delete-v1-documents-id",
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "description": "Allows you to delete a specific document, based on the authorized user/firm privileges."
+      }
+    },
+    "/v1/documents/{id}/versions": {
+      "parameters": [
+        {
+          "schema": {
+            "type": "string"
+          },
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "The id of the document you want to get / add versions from / to."
+        }
+      ],
+      "get": {
+        "summary": "Get All Versions of a Document",
+        "tags": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Link": {
+                "$ref": "#/components/headers/paginationLink"
+              },
+              "Item-Count": {
+                "$ref": "#/components/headers/paginationCount"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DocumentVersionResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "get-v1-documents-id-versions",
+        "description": "Get all versions associated with a specific document.",
+        "parameters": []
+      },
+      "post": {
+        "summary": "Create a Version for a Document",
+        "operationId": "post-v1-documents-id-versions",
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentVersionPostResponse"
+                }
+              }
+            }
+          }
+        },
+        "description": "Create a version for a specified document."
+      }
+    },
+    "/v1/documents/{id}/data": {
+      "parameters": [
+        {
+          "schema": {
+            "type": "string"
+          },
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "The id of the document to download"
+        }
+      ],
+      "get": {
+        "summary": "Download a Document",
+        "tags": [],
+        "responses": {
+          "302": {
+            "description": "Found",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Temporary URL to download document data (valid for 1 minute)"
+              }
+            }
+          }
+        },
+        "operationId": "get-v1-documents-id-data",
+        "description": "Download a specific document."
+      }
+    },
+    "/v1/documents/{id}/versions/{version_number}/data": {
+      "parameters": [
+        {
+          "schema": {
+            "type": "string"
+          },
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "The id of the document to download a version of."
+        },
+        {
+          "schema": {
+            "type": "string"
+          },
+          "name": "version_number",
+          "in": "path",
+          "required": true,
+          "description": "The number of the specific version of this document to download."
+        }
+      ],
+      "get": {
+        "summary": "Download a Document Version",
+        "tags": [],
+        "responses": {
+          "302": {
+            "description": "Found",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Temporary URL to download document data (valid for 1 hour)"
+              }
+            }
+          }
+        },
+        "operationId": "get-v1-documents-id-versions-version_number-data",
+        "description": "Download a specific document version."
+      }
+    },
+    "/v1/documents/{id}/versions/{version_number}": {
+      "parameters": [
+        {
+          "schema": {
+            "type": "string"
+          },
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "The id of the document you want to view or update."
+        },
+        {
+          "schema": {
+            "type": "string"
+          },
+          "name": "version_number",
+          "in": "path",
+          "required": true,
+          "description": "The number of the specific version of this document."
+        }
+      ],
+      "delete": {
+        "summary": "Delete an Individual Document Version",
+        "operationId": "delete-v1-documents-id-versions-version_number",
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "description": "Allows you to delete a specific version of a document, based on the authorized user/firm privileges."
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CaseNestedResponse": {
+        "title": "CaseNestedResponse",
+        "x-stoplight": {
+          "id": "hnstwxngt9tpt"
+        },
+        "type": ["object", "null"],
+        "x-internal": false,
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "The ID of the case."
+          }
+        }
+      },
+      "DocumentPostResponse": {
+        "title": "DocumentResponse",
+        "x-stoplight": {
+          "id": "3gs5lo9fukxhz"
+        },
+        "type": "object",
+        "x-internal": false,
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string",
+            "description": "The name of the document as seen in MyCase."
+          },
+          "filename": {
+            "type": "string",
+            "description": "The name of the physical file associated with this document."
+          },
+          "path": {
+            "type": "string",
+            "description": "The folder structure of where this document is located in MyCase."
+          },
+          "description": {
+            "type": "string"
+          },
+          "assigned_date": {
+            "type": "string"
+          },
+          "case": {
+            "$ref": "#/components/schemas/CaseNestedResponse"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "self_url": {
+            "type": "string",
+            "description": "The url that can be used to view this document specifically.",
+            "example": "/v1/documents/1"
+          },
+          "folder": {
+            "$ref": "#/components/schemas/FolderNestedResponse"
+          },
+          "put_url": {
+            "type": "string",
+            "description": "An Amazon S3 PUT url to upload your file."
+          },
+          "put_headers": {
+            "type": "object",
+            "description": "Include these headers with your S3 PUT request. Please make sure to set `Content-Type: application/octet-stream`",
+            "properties": {
+              "x-amz-acl": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "DocumentRequest": {
+        "title": "DocumentRequest",
+        "x-stoplight": {
+          "id": "rh7lgmsrahr9d"
+        },
+        "type": "object",
+        "x-internal": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "The relative path of this document. This path should include the name of the document. Any folders listed in this path will be created automatically if they are not already in MyCase.",
+            "example": "example_folder1/example_folder2/example_name"
+          },
+          "filename": {
+            "type": "string",
+            "example": "file.txt",
+            "description": "The filename of the physical file associated with this document including type extension."
+          },
+          "description": {
+            "type": "string",
+            "description": "The description of this document."
+          },
+          "assigned_date": {
+            "type": "string",
+            "description": "The assigned date of this document. Must be in ISO 8601 date format."
+          }
+        },
+        "required": ["path", "filename"]
+      },
+      "DocumentResponse": {
+        "title": "DocumentResponse",
+        "x-stoplight": {
+          "id": "uufebq43c51o4"
+        },
+        "type": "object",
+        "x-internal": false,
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string",
+            "description": "The name of the document as seen in MyCase."
+          },
+          "filename": {
+            "type": "string",
+            "description": "The name of the physical file associated with this document."
+          },
+          "path": {
+            "type": "string",
+            "description": "The folder structure of where this document is located in MyCase."
+          },
+          "description": {
+            "type": "string"
+          },
+          "assigned_date": {
+            "type": "string"
+          },
+          "case": {
+            "$ref": "#/components/schemas/CaseNestedResponse"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "self_url": {
+            "type": "string",
+            "description": "The url that can be used to view this document specifically.",
+            "example": "/v1/documents/1"
+          },
+          "folder": {
+            "$ref": "#/components/schemas/FolderNestedResponse"
+          }
+        }
+      },
+      "DocumentVersionPostResponse": {
+        "title": "DocumentVersionPostResponse",
+        "x-stoplight": {
+          "id": "mx8dy878f1g7y"
+        },
+        "type": "object",
+        "x-internal": false,
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "version": {
+            "type": "number",
+            "description": "The version number of this DocumentVersion as it relates to the associated parent Document"
+          },
+          "document": {
+            "type": "object",
+            "description": "The parent Document that this DocumentVersion is associated with",
+            "properties": {
+              "id": {
+                "type": "number"
+              }
+            }
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "self_url": {
+            "type": "string",
+            "description": "The url that this DocumentVersion is accessible from",
+            "example": "/v1/documents/1/versions/2"
+          },
+          "put_url": {
+            "type": "string",
+            "description": "An Amazon S3 PUT url to upload your file."
+          },
+          "put_headers": {
+            "type": "object",
+            "description": "Include these headers with your S3 PUT request. Please make sure to set `Content-Type: application/octet-stream`",
+            "properties": {
+              "x-amz-acl": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "DocumentVersionResponse": {
+        "title": "DocumentVersionResponse",
+        "x-stoplight": {
+          "id": "dwuvyaar3fyq3"
+        },
+        "type": "object",
+        "x-internal": false,
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "version": {
+            "type": "number",
+            "description": "The version number of this DocumentVersion as it relates to the associated parent Document"
+          },
+          "document": {
+            "type": "object",
+            "description": "The parent Document that this DocumentVersion is associated with",
+            "properties": {
+              "id": {
+                "type": "number"
+              }
+            }
+          },
+          "self_url": {
+            "type": "string",
+            "description": "The url that this DocumentVersion is accessible from",
+            "example": "/v1/documents/1/versions/2"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        }
+      },
+      "FirmDocumentRequest": {
+        "title": "DocumentRequest",
+        "x-stoplight": {
+          "id": "zlvjohvugwzvt"
+        },
+        "type": "object",
+        "x-internal": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "The relative path of this document. This path should include the name of the document. Any folders listed in this path will be created automatically if they are not already in MyCase.",
+            "example": "example_folder1/example_folder2/example_name"
+          },
+          "filename": {
+            "type": "string",
+            "example": "file.txt",
+            "description": "The filename of the physical file associated with this document including type extension."
+          },
+          "description": {
+            "type": "string",
+            "description": "The description of this document."
+          },
+          "assigned_date": {
+            "type": "string",
+            "description": "The assigned date of this document. Must be in ISO 8601 date format."
+          },
+          "staff": {
+            "type": "array",
+            "description": "The staff that this document should be shared with.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "required": ["path", "filename"]
+      },
+      "FolderNestedResponse": {
+        "title": "FolderNestedResponse",
+        "x-stoplight": {
+          "id": "5p1tmxjv7ttvh"
+        },
+        "type": ["object"],
+        "x-internal": false,
+        "properties": {
+          "id": {
+            "type": "number",
+            "description": "The ID of the parent folder."
+          }
+        }
+      }
+    },
+    "headers": {
+      "paginationLink": {
+        "description": "If there is another page of results, we provides you with the cursor to the next page using `page_token`. Please reference our pagination documentation for more info.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "paginationCount": {
+        "description": "The total number of results.",
+        "schema": {
+          "type": "number"
+        }
+      }
+    },
+    "parameters": {
+      "FilterUpdatedAfter": {
+        "title": "FilterUpdatedAfterParam",
+        "name": "filter[updated_after]",
+        "in": "query",
+        "required": false,
+        "description": "Filters the response to return only resources that are created or updated after a specified date/time. ISO 8610 date format. Results are inclusive of the date/time entered. Can include time but does not need to.",
+        "schema": {
+          "type": "string",
+          "example": "?filter[updated_after]=2022-03-17T21:00:00Z"
+        }
+      },
+      "PageSize": {
+        "title": "PageSizeParam",
+        "name": "page_size",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "number",
+          "default": "25",
+          "example": "?page_size=100",
+          "maximum": 1000,
+          "minimum": 1
+        },
+        "description": "The ability to specify the number of resources that are returned per response page."
+      }
+    }
+  }
+}

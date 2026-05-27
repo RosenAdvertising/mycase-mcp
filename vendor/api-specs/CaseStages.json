@@ -1,0 +1,216 @@
+{
+  "openapi": "3.1.0",
+  "x-stoplight": {
+    "id": "08kdwqdulef3y"
+  },
+  "info": {
+    "title": "Case Stages",
+    "version": "1.0",
+    "description": "Case Stages API",
+    "contact": {
+      "name": "MyCase"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://external-integrations.mycase.com"
+    }
+  ],
+  "paths": {
+    "/v1/case_stages": {
+      "parameters": [],
+      "get": {
+        "summary": "Get Case Stages",
+        "tags": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Link": {
+                "$ref": "#/components/headers/Cases_PaginationLink"
+              },
+              "Item-Count": {
+                "$ref": "#/components/headers/Cases_PaginationCount"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CaseStageResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "get-v1-case-stages",
+        "description": "Get all firm case stages viewable by the authorized user.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PageSize"
+          },
+          {
+            "$ref": "#/components/parameters/FilterUpdatedAfter"
+          }
+        ]
+      },
+      "post": {
+        "summary": "Create a Case Stage",
+        "operationId": "post-v1-case-stages",
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseStageResponse"
+                }
+              }
+            }
+          }
+        },
+        "description": "Create a case stage.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CaseStageRequest"
+              }
+            }
+          },
+          "description": ""
+        }
+      }
+    },
+    "/v1/case_stages/{id}": {
+      "parameters": [
+        {
+          "schema": {
+            "type": "string"
+          },
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "The id of the case stage you want to view or update."
+        }
+      ],
+      "put": {
+        "summary": "Update an Individual Case Stage",
+        "operationId": "put-v1-case-stages-id",
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "description": "Allows you to edit a specific case stage, based on the authorized user/firm privileges.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CaseStageRequest"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete an Individual Case Stage",
+        "operationId": "delete-v1-case-stages-id",
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "description": "Allows you to delete a specific case stage, based on the authorized user/firm privileges."
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "FilterUpdatedAfter": {
+        "title": "FilterUpdatedAfterParam",
+        "name": "filter[updated_after]",
+        "in": "query",
+        "required": false,
+        "description": "Filters the response to return only resources that are created or updated after a specified date/time. ISO 8610 date format. Results are inclusive of the date/time entered. Can include time but does not need to.",
+        "schema": {
+          "type": "string",
+          "example": "?filter[updated_after]=2022-03-17T21:00:00Z"
+        }
+      },
+      "PageSize": {
+        "title": "PageSizeParam",
+        "name": "page_size",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "number",
+          "default": "25",
+          "example": "?page_size=100",
+          "maximum": 1000,
+          "minimum": 1
+        },
+        "description": "The ability to specify the number of resources that are returned per response page."
+      }
+    },
+    "schemas": {
+      "CaseStageRequest": {
+        "title": "CaseStageRequest",
+        "x-stoplight": {
+          "id": "w1ib4spiuy7f1"
+        },
+        "type": "object",
+        "x-internal": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The name of the case stage."
+          }
+        },
+        "required": ["name"]
+      },
+      "CaseStageResponse": {
+        "title": "CaseStageResponse",
+        "x-stoplight": {
+          "id": "d72h4ylu2fsm2"
+        },
+        "type": "object",
+        "x-internal": false,
+        "properties": {
+          "id": {
+            "type": "number",
+            "description": "A unique identifier for the case stage."
+          },
+          "name": {
+            "type": "string",
+            "description": "The name of the case stage."
+          },
+          "created_at": {
+            "type": "string",
+            "description": "The date the case stage was created in ISO 8601 date/time format. "
+          },
+          "updated_at": {
+            "type": "string",
+            "description": "The date the case stage was updated in ISO 8601 date/time format. "
+          }
+        }
+      }
+    },
+    "headers": {
+      "Cases_PaginationCount": {
+        "description": "The total number of results.",
+        "schema": {
+          "type": "number"
+        }
+      },
+      "Cases_PaginationLink": {
+        "description": "If there is another page of results, we provides you with the cursor to the next page using `page_token`. Please reference our pagination documentation for more info.",
+        "schema": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

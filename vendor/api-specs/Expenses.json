@@ -1,0 +1,348 @@
+{
+  "openapi": "3.1.0",
+  "x-stoplight": {
+    "id": "kaz6g3ecbfz3z"
+  },
+  "info": {
+    "title": "Expenses",
+    "version": "1.0",
+    "description": "Expenses API",
+    "contact": {
+      "name": "MyCase"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://external-integrations.mycase.com"
+    }
+  ],
+  "paths": {
+    "/v1/expenses": {
+      "get": {
+        "summary": "Get Expenses",
+        "tags": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Link": {
+                "$ref": "#/components/headers/Cases_PaginationLink"
+              },
+              "Item-Count": {
+                "$ref": "#/components/headers/Cases_PaginationCount"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ExpenseResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "get-v1-expenses",
+        "description": "Get all firm expenses viewable by the authorized user.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PageSize"
+          },
+          {
+            "$ref": "#/components/parameters/FilterUpdatedAfter"
+          }
+        ]
+      },
+      "post": {
+        "summary": "Create an Expense",
+        "operationId": "post-v1-expenses",
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpenseResponse"
+                }
+              }
+            }
+          }
+        },
+        "description": "Create an individual expense.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExpenseRequest"
+              }
+            }
+          }
+        }
+      },
+      "parameters": []
+    },
+    "/v1/expenses/{id}": {
+      "get": {
+        "summary": "Get an Individual Expense",
+        "tags": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpenseResponse"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "get-v1-expenses-id",
+        "description": "Allows you to view a specific expense, based on the authorized user/firm privileges.",
+        "parameters": []
+      },
+      "delete": {
+        "summary": "Delete an Individual Expense",
+        "operationId": "delete-v1-expenses-id",
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "description": "Allows you to delete a specific expense, based on the authorized user/firm privileges."
+      },
+      "parameters": [
+        {
+          "schema": {
+            "type": "string"
+          },
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "The id of the expense you want to view or update."
+        }
+      ]
+    }
+  },
+  "components": {
+    "parameters": {
+      "FilterUpdatedAfter": {
+        "title": "FilterUpdatedAfterParam",
+        "name": "filter[updated_after]",
+        "in": "query",
+        "required": false,
+        "description": "Filters the response to return only resources that are created or updated after a specified date/time. ISO 8610 date format. Results are inclusive of the date/time entered. Can include time but does not need to.",
+        "schema": {
+          "type": "string",
+          "example": "?filter[updated_after]=2022-03-17T21:00:00Z"
+        }
+      },
+      "PageSize": {
+        "title": "PageSizeParam",
+        "name": "page_size",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "number",
+          "default": "25",
+          "example": "?page_size=100",
+          "maximum": 1000,
+          "minimum": 1
+        },
+        "description": "The ability to specify the number of resources that are returned per response page."
+      }
+    },
+    "schemas": {
+      "CustomFieldValueResponse": {
+        "title": "CustomFieldValueResponse",
+        "x-stoplight": {
+          "id": "dj7cxrww1ic2a"
+        },
+        "type": "object",
+        "x-internal": false,
+        "properties": {
+          "custom_field": {
+            "type": "object",
+            "description": "The custom field that this value is associated with. By default, this object will only be returned with an `id` field. To specify more fields to be returned, please see the `field` query parameters.",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "field_type": {
+                "type": "string",
+                "description": "The field type of the Custom Field. One of `short_text | long_text | numeric | boolean | date | list | currency`."
+              }
+            }
+          },
+          "value": {
+            "description": "The value of this custom field.",
+            "type": ["string", "number", "boolean"]
+          },
+          "created_at": {
+            "type": "string",
+            "description": "An ISO 8601 timestamp of when the Custom Field value was created."
+          },
+          "updated_at": {
+            "type": "string",
+            "description": "An ISO 8601 timestamp of when the Custom Field value was last updated."
+          }
+        }
+      },
+      "ExpenseRequest": {
+        "title": "ExpenseRequest",
+        "x-stoplight": {
+          "id": "k48611x2tgrrl"
+        },
+        "type": "object",
+        "x-internal": false,
+        "properties": {
+          "activity_name": {
+            "type": "string",
+            "description": "The activity name associated with this expense. If there is no matching activity already in MyCase, one will be created with this name."
+          },
+          "description": {
+            "type": "string"
+          },
+          "billable": {
+            "description": "Whether or not this expense is billable.",
+            "type": "boolean"
+          },
+          "entry_date": {
+            "type": "string",
+            "description": "The entry date of this expense. Must be in ISO 8601 date format."
+          },
+          "cost": {
+            "type": "number"
+          },
+          "units": {
+            "type": "number"
+          },
+          "case": {
+            "type": "object",
+            "required": ["id"],
+            "properties": {
+              "id": {
+                "type": "integer"
+              }
+            }
+          },
+          "staff": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              }
+            }
+          }
+        },
+        "required": [
+          "activity_name",
+          "billable",
+          "entry_date",
+          "cost",
+          "units",
+          "case"
+        ]
+      },
+      "ExpenseResponse": {
+        "title": "ExpenseResponse",
+        "x-stoplight": {
+          "id": "ubwkdttivqjfz"
+        },
+        "type": "object",
+        "x-internal": false,
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "activity_name": {
+            "type": "string",
+            "description": "The activity name associated with this expense."
+          },
+          "description": {
+            "type": "string"
+          },
+          "billable": {
+            "description": "Whether or not this expense is billable.",
+            "type": "boolean"
+          },
+          "entry_date": {
+            "type": "string",
+            "description": "The entry date of this expense in ISO 8601 date format."
+          },
+          "cost": {
+            "type": "string"
+          },
+          "units": {
+            "type": "string"
+          },
+          "case": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              }
+            }
+          },
+          "staff": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              }
+            }
+          },
+          "invoices": {
+            "type": "array",
+            "x-stoplight": {
+              "id": "ri6fn3ah4kgnd"
+            },
+            "items": {
+              "x-stoplight": {
+                "id": "z9gb7qqezbz6c"
+              },
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "x-stoplight": {
+                    "id": "gylx8g73km910"
+                  }
+                }
+              }
+            }
+          },
+          "custom_field_values": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CustomFieldValueResponse"
+            }
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "headers": {
+      "Cases_PaginationCount": {
+        "description": "The total number of results.",
+        "schema": {
+          "type": "number"
+        }
+      },
+      "Cases_PaginationLink": {
+        "description": "If there is another page of results, we provides you with the cursor to the next page using `page_token`. Please reference our pagination documentation for more info.",
+        "schema": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

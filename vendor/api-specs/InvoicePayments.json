@@ -1,0 +1,210 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Invoice Payments",
+    "version": "1.0",
+    "description": "Invoice Payments API",
+    "contact": {
+      "name": "MyCase"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://external-integrations.mycase.com"
+    }
+  ],
+  "paths": {
+    "/v1/invoice_payments": {
+      "get": {
+        "summary": "Get Invoice Payments",
+        "tags": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Link": {
+                "$ref": "#/components/headers/Cases_PaginationLink"
+              },
+              "Item-Count": {
+                "$ref": "#/components/headers/Cases_PaginationCount"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InvoicePaymentResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "get-v1-invoice_payments",
+        "description": "Get all firm invoice payments viewable by the authorized user.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PageSize"
+          },
+          {
+            "$ref": "#/components/parameters/FilterPaymentStatus"
+          },
+          {
+            "$ref": "#/components/parameters/FilterPayable"
+          }
+        ]
+      },
+      "parameters": []
+    }
+  },
+  "components": {
+    "parameters": {
+      "FilterPayable": {
+        "title": "FilterPayableParam",
+        "name": "filter[payable_id]",
+        "in": "query",
+        "required": false,
+        "description": "Filters the response to return only resources that match the filter provided.",
+        "schema": {
+          "type": "string",
+          "example": "?filter[payable_id]=12345"
+        }
+      },
+      "FilterPaymentStatus": {
+        "title": "FilterPaymentStatusParam",
+        "name": "filter[status]",
+        "in": "query",
+        "required": false,
+        "description": "Filters the response to return only resources that match the filter provided.",
+        "schema": {
+          "type": "string",
+          "example": "?filter[status]=success"
+        }
+      },
+      "PageSize": {
+        "title": "PageSizeParam",
+        "name": "page_size",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "number",
+          "default": "25",
+          "example": "?page_size=100",
+          "maximum": 1000,
+          "minimum": 1
+        },
+        "description": "The ability to specify the number of resources that are returned per response page."
+      }
+    },
+    "schemas": {
+      "CaseNestedResponse": {
+        "title": "CaseNestedResponse",
+        "x-stoplight": {
+          "id": "hnstwxngt9tpt"
+        },
+        "type": ["object", "null"],
+        "x-internal": false,
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "The ID of the case."
+          }
+        }
+      },
+      "InvoicePaymentResponse": {
+        "title": "InvoicePaymentResponse",
+        "x-stoplight": {
+          "id": "rxrj4pzn12oki"
+        },
+        "type": "object",
+        "x-internal": false,
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "amount": {
+            "type": "number",
+            "description": "The amount of the payment."
+          },
+          "notes": {
+            "type": "string",
+            "description": "The notes associated with this payment."
+          },
+          "date": {
+            "type": ["string", "null"],
+            "description": "The date recorded for the payment in ISO 8601 date format."
+          },
+          "invoice": {
+            "type": "object",
+            "description": "The invoice that this payment is associated with.",
+            "properties": {
+              "id": {
+                "type": "integer"
+              }
+            }
+          },
+          "status": {
+            "type": "string",
+            "description": "The status of the payment. One of `pending | success | failure | error | timeout`."
+          },
+          "transaction_type": {
+            "type": ["string", "null"],
+            "description": "The type of transaction that this payment is associated with."
+          },
+          "case": {
+            "$ref": "#/components/schemas/CaseNestedResponse"
+          },
+          "account_name": {
+            "type": ["string", "null"],
+            "description": "The name of the account that this payment is associated with."
+          },
+          "attorney": {
+            "type": ["object", "null"],
+            "description": "The attorney who created the invoices associated with this payment.",
+            "properties": {
+              "id": {
+                "type": "integer"
+              }
+            }
+          },
+          "client": {
+            "type": ["object", "null"],
+            "description": "The payer of the invoices associated with this payment.",
+            "properties": {
+              "id": {
+                "type": "integer"
+              }
+            }
+          },
+          "invoice_number": {
+            "type": "string",
+            "description": "The invoice number that this payment is associated with."
+          },
+          "created_at": {
+            "type": "string",
+            "description": "The date the invoice payment was created in ISO 8601 date/time format. "
+          },
+          "updated_at": {
+            "type": "string",
+            "description": "The date the invoice payment was updated in ISO 8601 date/time format. "
+          }
+        }
+      }
+    },
+    "headers": {
+      "Cases_PaginationCount": {
+        "description": "The total number of results.",
+        "schema": {
+          "type": "number"
+        }
+      },
+      "Cases_PaginationLink": {
+        "description": "If there is another page of results, we provides you with the cursor to the next page using `page_token`. Please reference our pagination documentation for more info.",
+        "schema": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

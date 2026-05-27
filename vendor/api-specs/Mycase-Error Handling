@@ -1,0 +1,35 @@
+Error Handling
+We use standard HTTP codes to indicate if an error has occurred. Some errors will include additional information about the error and if it was in the request or query string parameter.
+
+Error Response Structure
+description: a human readable description for the error. The contents may change over time.
+source: An object that can optionally contain ONE of the following properties.
+pointer: a JSON pointer to the property in the entity request.
+parameter: a string indicating which query parameter cause the error.
+Example
+{
+  "errors": [
+    {
+      "description": "string",
+      "source": {
+        "pointer": "string",
+      }
+    },
+    {
+      "description": "string",
+      "source": {
+        "parameter": "string",
+      }
+    }
+  ]
+}
+Error Codes
+Code	Text	Description
+400	Bad Request	The body format entered is not correct, check documentation.
+401	Unauthorized	Signifies the user has not been authenticated against the API. Please make sure to refresh token if needed.
+403	Forbidden	The user does not have the correct permission set in MyCase or the correct authorization for that action.
+404	Not Found	Path was entered incorrectly or the ID used for GET was not found in the system.
+422	Unproccesable Entity	A field has incorrect data or doesnt meet the business requirements, please check API documentation.
+429	Too Many Requests	The partner has made too many requests of the endpoint.
+500	Internal Server Error	Something went wrong, try again later.
+503	Service Unavailable	MyCase is down for scheduled maintenance.
