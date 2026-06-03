@@ -770,7 +770,7 @@ class MyCaseClient:
         self,
         activity_name,
         cost,
-        units=1,
+        units: float = 1,
         case_id=None,
         staff_id=None,
         description=None,
