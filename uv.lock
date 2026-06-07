@@ -444,7 +444,7 @@ dependencies = [
 requires-dist = [
     { name = "mcp", specifier = ">=1.0.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
-    { name = "requests", specifier = ">=2.31.0" },
+    { name = "requests", specifier = ">=2.34.2" },
 ]
 
 [[package]]
