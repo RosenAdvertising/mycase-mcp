@@ -1252,6 +1252,121 @@ def delete_webhook_subscription(subscription_id: int) -> str:
     )
 
 
+# ── Resources ─────────────────────────────────────────────────────────────────
+
+
+@mcp.resource("mycase://practice_areas", mime_type="application/json")
+def practice_areas_resource() -> str:
+    """All practice areas configured in this MyCase firm — read-only reference data."""
+    return json.dumps(MyCaseClient().list_practice_areas(), indent=2)
+
+
+@mcp.resource("mycase://case_stages", mime_type="application/json")
+def case_stages_resource() -> str:
+    """All case stages configured in this MyCase firm — read-only reference data."""
+    return json.dumps(MyCaseClient().list_case_stages(), indent=2)
+
+
+@mcp.resource("mycase://security-notes", mime_type="text/markdown")
+def security_notes_resource() -> str:
+    """Security posture for mycase-mcp.
+
+    ## Credentials
+    - **MYCASE_API_TOKEN**: MyCase API bearer token.
+    - Resolution order: process env → `~/.mycase-mcp/.env` (chmod 0600 fallback).
+      Set via `mycase-mcp-setup`.
+
+    ## Tool classification
+    - **Read-only (safe):** who_am_i, get_firm, list_staff, get_staff_member, list_cases,
+      get_case, list_cases_for_client, list_clients, get_client, list_client_notes,
+      list_client_message_threads, list_companies, get_company, list_tasks, list_events,
+      list_time_entries, get_time_entry, list_invoices, list_invoice_payments, get_note,
+      list_case_notes, list_documents, get_document, list_case_documents,
+      list_document_versions, get_case_folder, list_all_document_versions,
+      get_document_data, get_document_version_data, list_leads, get_lead,
+      list_case_stages, list_case_roles, list_referral_sources, list_locations,
+      list_people_groups, list_practice_areas, list_custom_fields, get_custom_field,
+      list_custom_field_options, list_expenses, get_expense, list_calls,
+      list_folder_documents, list_folder_subfolders, list_webhook_subscriptions.
+    - **Write / side-effect:** create_case, update_case, delete_case, add_client_to_case,
+      add_company_to_case, add_staff_to_case, create_client, update_client, delete_client,
+      create_company, update_company, delete_company, add_client_to_company, create_task,
+      update_task, delete_task, assign_task_to_staff, create_event, update_event,
+      delete_event, add_staff_to_event, create_time_entry, delete_time_entry,
+      record_invoice_payment, update_note, delete_note, create_case_note,
+      create_client_note, create_company_note, upload_document, upload_case_document,
+      update_document, delete_document, upload_document_version, delete_document_version,
+      create_lead, update_lead, create_message_thread, create_case_message_thread,
+      post_message, create_case_stage, update_case_stage, delete_case_stage,
+      create_referral_source, create_location, update_location, delete_location,
+      create_people_group, update_people_group, delete_people_group, create_practice_area,
+      update_practice_area, delete_practice_area, create_custom_field, delete_custom_field,
+      create_custom_field_option, update_custom_field_option, delete_custom_field_option,
+      create_expense, delete_expense, create_call, update_call, delete_call,
+      create_case_subfolder, create_webhook_subscription, delete_webhook_subscription.
+
+    ## Data sensitivity
+    Cases, notes, documents, and messages contain attorney-client privileged material.
+    Apply legal-privilege standards to all data access and handling.
+    """
+    return security_notes_resource.__doc__ or ""
+
+
+# ── Prompts ───────────────────────────────────────────────────────────────────
+
+
+@mcp.prompt()
+def case_status_briefing() -> str:
+    """Morning briefing: open cases, overdue tasks, and pending invoices."""
+    return """You are a legal assistant. Generate a morning status briefing:
+
+1. Call list_cases with status='open' — count and list all open matters.
+2. Call list_tasks — identify overdue tasks (due_date before today, not completed).
+   Flag each with the case name and assigned staff.
+3. Call list_events with today's date — list all calendar items for today.
+4. Call list_invoices with status='overdue' — list overdue invoices with amounts.
+5. Summarize: X open cases | Y overdue tasks | Z events today | $A overdue AR.
+6. Rank the top 3 most urgent items across tasks, events, and invoices.
+
+Be specific — include case names, due dates, and dollar amounts."""
+
+
+@mcp.prompt()
+def intake_new_client(case_description: str) -> str:
+    """Intake workflow for a new client: create client record, case, and first task."""
+    return f"""Intake a new legal client for the following matter: {case_description}
+
+Walk through this intake sequence:
+1. Call list_practice_areas — identify the matching practice area for this matter.
+2. Call list_case_stages — find the appropriate opening stage (e.g. 'Intake' or 'New').
+3. Call list_referral_sources — prompt for or infer the referral source.
+4. Create the client record with create_client (first name, last name, email, phone).
+5. Create the case with create_case — link to the practice area and opening stage.
+6. Add the client to the case with add_client_to_case.
+7. Create the first task with create_task: 'Initial consultation scheduled',
+   priority='High', due_date=within 3 business days, assigned to intake staff.
+8. Create a case note with create_case_note capturing the initial matter description.
+9. Confirm: client ID, case ID, task ID, and note ID all created."""
+
+
+@mcp.prompt()
+def billing_cycle_review() -> str:
+    """Review unbilled time and outstanding invoices for billing cycle close."""
+    return """Run a billing cycle review for all open matters:
+
+1. Call list_cases with status='open' — get the full open matter list.
+2. Call list_time_entries — identify unbilled entries (billable=true, no invoice).
+   Group by case; total hours and estimated dollar value per case.
+3. Call list_invoices with status='draft' — list drafts awaiting approval.
+4. Call list_invoices with status='sent' — identify unpaid invoices over 30 days.
+5. Call list_invoice_payments — check recent payment activity.
+6. Output:
+   - Unbilled time: Case | Hours | Est. Amount
+   - Draft invoices pending approval: Invoice | Case | Amount
+   - Outstanding invoices 30+ days: Invoice | Client | Days Outstanding | Amount
+7. Flag any matter with > 10 unbilled hours as a billing priority."""
+
+
 # ── Entry points ──────────────────────────────────────────────────────────────
 
 
