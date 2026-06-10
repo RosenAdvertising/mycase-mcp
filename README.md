@@ -89,12 +89,31 @@ Restart Claude Desktop after saving the config.
 **429 Too Many Requests**
 → The server retries automatically (up to 3 times). If it persists, wait a moment and retry.
 
-## Credentials Storage
+## Credential storage
 
-- `~/.mycase-mcp/.env` — Client ID and Secret (mode 600)
-- `~/.mycase-mcp/tokens.json` — Access/refresh tokens (mode 600)
+By default credentials are stored in your operating system's native secret store
+via the cross-platform [`keyring`](https://github.com/jaraco/keyring) library:
 
-Tokens are refreshed automatically on expiry.
+| OS      | Backend                                  |
+| ------- | ---------------------------------------- |
+| macOS   | Keychain                                 |
+| Windows | Credential Manager                       |
+| Linux   | Secret Service (GNOME Keyring / KWallet) |
+
+Secrets are saved under the service name `mycase-mcp`. Nothing is written to
+disk in clear text.
+
+**File fallback.** On a host with no keyring backend (e.g. a headless Linux box
+without Secret Service), or if you set `MYCASE_MCP_USE_KEYRING=0`, credentials
+fall back to a `~/.mycase-mcp/.env` file with `0600` permissions.
+
+**Read order.** Credentials resolve in the order OS keyring → process environment
+→ `.env` file. So a rotated secret in the keyring always wins, and a
+`MYCASE_CLIENT_ID` / `MYCASE_CLIENT_SECRET` exported in your shell overrides the
+file fallback without touching the keyring.
+
+OAuth tokens are stored separately at `~/.mycase-mcp/tokens.json` (mode 600) and
+refreshed automatically on expiry.
 
 ## Tools
 

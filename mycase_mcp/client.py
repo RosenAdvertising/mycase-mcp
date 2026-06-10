@@ -9,24 +9,15 @@ import requests
 from pathlib import Path
 from datetime import datetime, timezone
 
+from mycase_mcp import credentials
+
 BASE_URL = "https://external-integrations.mycase.com/v1"
 AUTH_URL = "https://auth.mycase.com/login_sessions/new"
 TOKEN_URL = "https://auth.mycase.com/tokens"
 CONFIG_DIR = Path.home() / ".mycase-mcp"
 
-
-def _load_env():
-    env_file = CONFIG_DIR / ".env"
-    if env_file.exists():
-        with open(env_file) as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith("#") and "=" in line:
-                    key, val = line.split("=", 1)
-                    os.environ.setdefault(key.strip(), val.strip())
-
-
-_load_env()
+# Resolve credentials through the pluggable store (OS keyring -> .env file).
+credentials.load_into_environ(["MYCASE_CLIENT_ID", "MYCASE_CLIENT_SECRET"])
 
 CLIENT_ID = os.environ.get("MYCASE_CLIENT_ID", "")
 CLIENT_SECRET = os.environ.get("MYCASE_CLIENT_SECRET", "")
