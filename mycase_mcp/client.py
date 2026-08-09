@@ -35,9 +35,23 @@ def _json_response(resp):
         return resp.json()
     except ValueError:
         raise RuntimeError(
-            f"MyCase API returned non-JSON response ({resp.status_code}): "
-            f"{resp.text[:200]}"
+            f"MyCase API returned a non-JSON response ({resp.status_code})"
         )
+
+
+def _cap_list_response(payload, limit):
+    """Return at most ``limit`` collection records without changing envelopes."""
+    if isinstance(payload, list):
+        return payload[:limit]
+    if isinstance(payload, dict):
+        capped = dict(payload)
+        for key in ("data", "items", "list_options"):
+            values = payload.get(key)
+            if isinstance(values, list):
+                capped[key] = values[:limit]
+                break
+        return capped
+    return payload
 
 
 class TokenManager:
@@ -89,7 +103,7 @@ class TokenManager:
             new_tokens["refreshed_at"] = datetime.now(timezone.utc).isoformat()
             self.save(new_tokens)
             return new_tokens
-        raise RuntimeError(f"Token refresh failed ({resp.status_code}): {resp.text}")
+        raise RuntimeError(f"Token refresh failed ({resp.status_code})")
 
 
 class MyCaseClient:
@@ -147,9 +161,7 @@ class MyCaseClient:
             return {"download_url": resp.headers.get("Location")}
 
         if not resp.ok:
-            raise RuntimeError(
-                f"MyCase API error {resp.status_code}: {resp.text[:400]}"
-            )
+            raise RuntimeError(f"MyCase API error {resp.status_code}")
 
         return _json_response(resp)
 
@@ -165,6 +177,14 @@ class MyCaseClient:
     def delete(self, path):
         return self._request("DELETE", path)
 
+    def _list(self, path, page_size=25, params=None, *, send_page_size=True):
+        """Fetch one MyCase collection page and enforce a total response cap."""
+        query = dict(params or {})
+        if send_page_size:
+            query["page_size"] = page_size
+        payload = self.get(path, query or None)
+        return _cap_list_response(payload, page_size)
+
     # ── Identity ──────────────────────────────────────────────────────────────
 
     def get_me(self):
@@ -174,7 +194,7 @@ class MyCaseClient:
         return self.get("/firm")
 
     def list_staff(self, page_size=50):
-        return self.get("/staff", {"page_size": page_size})
+        return self._list("/staff", page_size)
 
     def get_staff(self, staff_id):
         return self.get(f"/staff/{staff_id}")
@@ -182,10 +202,10 @@ class MyCaseClient:
     # ── Cases ─────────────────────────────────────────────────────────────────
 
     def list_cases(self, status=None, page_size=25):
-        params = {"page_size": page_size}
+        params = {}
         if status:
             params["filter[status]"] = status
-        return self.get("/cases", params)
+        return self._list("/cases", page_size, params)
 
     def get_case(self, case_id):
         return self.get(f"/cases/{case_id}")
@@ -209,7 +229,7 @@ class MyCaseClient:
         return self.delete(f"/cases/{case_id}")
 
     def list_cases_for_client(self, client_id, page_size=25):
-        return self.get(f"/clients/{client_id}/cases", {"page_size": page_size})
+        return self._list(f"/clients/{client_id}/cases", page_size)
 
     def add_client_to_case(self, case_id, client_id, role=None):
         entry = {"id": client_id}
@@ -243,7 +263,7 @@ class MyCaseClient:
         updated_after=None,
         page_size=25,
     ):
-        params = {"page_size": page_size}
+        params = {}
         if email:
             params["filter[email]"] = email
         if first_name:
@@ -254,7 +274,7 @@ class MyCaseClient:
             params["filter[cell_phone_number]"] = cell_phone_number
         if updated_after:
             params["filter[updated_after]"] = updated_after
-        return self.get("/clients", params)
+        return self._list("/clients", page_size, params)
 
     def get_client(self, client_id):
         return self.get(f"/clients/{client_id}")
@@ -276,14 +296,14 @@ class MyCaseClient:
     # ── Companies ─────────────────────────────────────────────────────────────
 
     def list_companies(self, name=None, email=None, updated_after=None, page_size=25):
-        params = {"page_size": page_size}
+        params = {}
         if name:
             params["filter[name]"] = name
         if email:
             params["filter[email]"] = email
         if updated_after:
             params["filter[updated_after]"] = updated_after
-        return self.get("/companies", params)
+        return self._list("/companies", page_size, params)
 
     def get_company(self, company_id):
         return self.get(f"/companies/{company_id}")
@@ -313,10 +333,10 @@ class MyCaseClient:
     # ── Tasks ─────────────────────────────────────────────────────────────────
 
     def list_tasks(self, updated_after=None, page_size=25):
-        params = {"page_size": page_size}
+        params = {}
         if updated_after:
             params["filter[updated_after]"] = updated_after
-        return self.get("/tasks", params)
+        return self._list("/tasks", page_size, params)
 
     def create_task(
         self, name, priority, due_date, staff_id, case_id=None, description=None
@@ -347,14 +367,14 @@ class MyCaseClient:
     # ── Events ────────────────────────────────────────────────────────────────
 
     def list_events(self, case_id=None, start_date=None, end_date=None, page_size=25):
-        params = {"page_size": page_size}
+        params = {}
         if case_id:
             params["filter[case_id]"] = case_id
         if start_date:
             params["filter[start_date]"] = start_date
         if end_date:
             params["filter[end_date]"] = end_date
-        return self.get("/events", params)
+        return self._list("/events", page_size, params)
 
     def create_event(
         self,
@@ -389,10 +409,10 @@ class MyCaseClient:
     # ── Time Entries ──────────────────────────────────────────────────────────
 
     def list_time_entries(self, updated_after=None, page_size=25):
-        params = {"page_size": page_size}
+        params = {}
         if updated_after:
             params["filter[updated_after]"] = updated_after
-        return self.get("/time_entries", params)
+        return self._list("/time_entries", page_size, params)
 
     def get_time_entry(self, entry_id):
         return self.get(f"/time_entries/{entry_id}")
@@ -427,12 +447,12 @@ class MyCaseClient:
     # ── Invoices ──────────────────────────────────────────────────────────────
 
     def list_invoices(self, case_id=None, status=None, page_size=25):
-        params = {"page_size": page_size}
+        params = {}
         if case_id:
             params["filter[case_id]"] = case_id
         if status:
             params["filter[status]"] = status
-        return self.get("/invoices", params)
+        return self._list("/invoices", page_size, params)
 
     def delete_invoice(self, invoice_id):
         return self.delete(f"/invoices/{invoice_id}")
@@ -444,12 +464,12 @@ class MyCaseClient:
         return self.post(f"/invoices/{invoice_id}/payments", body)
 
     def list_invoice_payments(self, page_size=25, status=None, payable_id=None):
-        params = {"page_size": page_size}
+        params = {}
         if status:
             params["filter[status]"] = status
         if payable_id:
             params["filter[payable_id]"] = payable_id
-        return self.get("/invoice_payments", params)
+        return self._list("/invoice_payments", page_size, params)
 
     # ── Notes ─────────────────────────────────────────────────────────────────
 
@@ -470,7 +490,7 @@ class MyCaseClient:
         return self.delete(f"/notes/{note_id}")
 
     def list_case_notes(self, case_id, page_size=25):
-        return self.get(f"/cases/{case_id}/notes", {"page_size": page_size})
+        return self._list(f"/cases/{case_id}/notes", page_size)
 
     def create_case_note(self, case_id, note, subject, date):
         return self.post(
@@ -478,7 +498,7 @@ class MyCaseClient:
         )
 
     def list_client_notes(self, client_id, page_size=25):
-        return self.get(f"/clients/{client_id}/notes", {"page_size": page_size})
+        return self._list(f"/clients/{client_id}/notes", page_size)
 
     def create_client_note(self, client_id, note, subject, date):
         return self.post(
@@ -495,10 +515,10 @@ class MyCaseClient:
     # ── Documents ─────────────────────────────────────────────────────────────
 
     def list_documents(self, case_id=None, page_size=25):
-        params = {"page_size": page_size}
+        params = {}
         if case_id:
             params["filter[case_id]"] = case_id
-        return self.get("/documents", params)
+        return self._list("/documents", page_size, params)
 
     def get_document(self, doc_id):
         return self.get(f"/documents/{doc_id}")
@@ -514,11 +534,15 @@ class MyCaseClient:
     def delete_document(self, doc_id):
         return self.delete(f"/documents/{doc_id}")
 
-    def list_document_versions(self, doc_id):
-        return self.get(f"/documents/{doc_id}/versions")
+    def list_document_versions(self, doc_id, page_size=25):
+        return self._list(
+            f"/documents/{doc_id}/versions",
+            page_size,
+            send_page_size=False,
+        )
 
     def list_case_documents(self, case_id, page_size=25):
-        return self.get(f"/cases/{case_id}/documents", {"page_size": page_size})
+        return self._list(f"/cases/{case_id}/documents", page_size)
 
     def get_case_folder(self, case_id):
         return self.get(f"/cases/{case_id}/folder")
@@ -545,8 +569,8 @@ class MyCaseClient:
             body["assigned_date"] = assigned_date
         return self.post(f"/cases/{case_id}/documents", body)
 
-    def list_all_document_versions(self):
-        return self.get("/document_versions")
+    def list_all_document_versions(self, page_size=25):
+        return self._list("/document_versions", page_size)
 
     def upload_document_version(self, doc_id):
         return self.post(f"/documents/{doc_id}/versions")
@@ -563,10 +587,10 @@ class MyCaseClient:
     # ── Leads ─────────────────────────────────────────────────────────────────
 
     def list_leads(self, status=None, page_size=25):
-        params = {"page_size": page_size}
+        params = {}
         if status:
             params["filter[status]"] = status
-        return self.get("/leads", params)
+        return self._list("/leads", page_size, params)
 
     def get_lead(self, lead_id):
         return self.get(f"/leads/{lead_id}")
@@ -629,9 +653,7 @@ class MyCaseClient:
         return self.post(f"/cases/{case_id}/message_threads", body)
 
     def list_client_message_threads(self, client_id, page_size=25):
-        return self.get(
-            f"/clients/{client_id}/message_threads", {"page_size": page_size}
-        )
+        return self._list(f"/clients/{client_id}/message_threads", page_size)
 
     def post_message(self, thread_id, body_text, sender_id=None):
         body = {"body": body_text}
@@ -642,7 +664,7 @@ class MyCaseClient:
     # ── Reference Data ────────────────────────────────────────────────────────
 
     def list_case_stages(self, page_size=50):
-        return self.get("/case_stages", {"page_size": page_size})
+        return self._list("/case_stages", page_size)
 
     def create_case_stage(self, name):
         return self.post("/case_stages", {"name": name})
@@ -653,17 +675,17 @@ class MyCaseClient:
     def delete_case_stage(self, stage_id):
         return self.delete(f"/case_stages/{stage_id}")
 
-    def list_case_roles(self):
-        return self.get("/case_roles")
+    def list_case_roles(self, page_size=50):
+        return self._list("/case_roles", page_size)
 
     def list_referral_sources(self, page_size=50):
-        return self.get("/referral_sources", {"page_size": page_size})
+        return self._list("/referral_sources", page_size)
 
     def create_referral_source(self, name):
         return self.post("/referral_sources", {"name": name})
 
     def list_locations(self, page_size=50):
-        return self.get("/locations", {"page_size": page_size})
+        return self._list("/locations", page_size)
 
     def create_location(
         self, name, address1=None, city=None, state=None, zip_code=None, country=None
@@ -690,7 +712,7 @@ class MyCaseClient:
         return self.delete(f"/locations/{location_id}")
 
     def list_people_groups(self, page_size=50):
-        return self.get("/people_groups", {"page_size": page_size})
+        return self._list("/people_groups", page_size)
 
     def create_people_group(self, name):
         return self.post("/people_groups", {"name": name})
@@ -702,7 +724,7 @@ class MyCaseClient:
         return self.delete(f"/people_groups/{group_id}")
 
     def list_practice_areas(self, page_size=50):
-        return self.get("/practice_areas", {"page_size": page_size})
+        return self._list("/practice_areas", page_size)
 
     def create_practice_area(self, name):
         return self.post("/practice_areas", {"name": name})
@@ -714,7 +736,7 @@ class MyCaseClient:
         return self.delete(f"/practice_areas/{area_id}")
 
     def list_custom_fields(self, page_size=50):
-        return self.get("/custom_fields", {"page_size": page_size})
+        return self._list("/custom_fields", page_size)
 
     def create_custom_field(self, name, parent_type, field_type, list_options=None):
         body = {"name": name, "parent_type": parent_type, "field_type": field_type}
@@ -728,8 +750,12 @@ class MyCaseClient:
     def delete_custom_field(self, field_id):
         return self.delete(f"/custom_fields/{field_id}")
 
-    def list_custom_field_options(self, field_id):
-        return self.get(f"/custom_fields/{field_id}/list_options")
+    def list_custom_field_options(self, field_id, page_size=25):
+        return self._list(
+            f"/custom_fields/{field_id}/list_options",
+            page_size,
+            send_page_size=False,
+        )
 
     def create_custom_field_option(self, field_id, option_value):
         return self.post(
@@ -749,10 +775,10 @@ class MyCaseClient:
     # ── Expenses ──────────────────────────────────────────────────────────────
 
     def list_expenses(self, updated_after=None, page_size=25):
-        params = {"page_size": page_size}
+        params = {}
         if updated_after:
             params["filter[updated_after]"] = updated_after
-        return self.get("/expenses", params)
+        return self._list("/expenses", page_size, params)
 
     def get_expense(self, expense_id):
         return self.get(f"/expenses/{expense_id}")
@@ -790,10 +816,10 @@ class MyCaseClient:
     # ── Calls ─────────────────────────────────────────────────────────────────
 
     def list_calls(self, page_size=25, updated_after=None):
-        params = {"page_size": page_size}
+        params = {}
         if updated_after:
             params["filter[updated_after]"] = updated_after
-        return self.get("/calls", params)
+        return self._list("/calls", page_size, params)
 
     def create_call(
         self,
@@ -857,18 +883,22 @@ class MyCaseClient:
     # ── Folders ───────────────────────────────────────────────────────────────
 
     def list_folder_documents(self, folder_id, page_size=25):
-        return self.get(f"/folders/{folder_id}/documents", {"page_size": page_size})
+        return self._list(f"/folders/{folder_id}/documents", page_size)
 
-    def list_folder_subfolders(self, folder_id):
-        return self.get(f"/folders/{folder_id}/subfolders")
+    def list_folder_subfolders(self, folder_id, page_size=25):
+        return self._list(f"/folders/{folder_id}/subfolders", page_size)
 
     def create_case_subfolder(self, case_id, path):
         return self.post(f"/cases/{case_id}/subfolders", {"path": path})
 
     # ── Webhooks ──────────────────────────────────────────────────────────────
 
-    def list_webhook_subscriptions(self):
-        return self.get("/webhooks/subscriptions")
+    def list_webhook_subscriptions(self, page_size=25):
+        return self._list(
+            "/webhooks/subscriptions",
+            page_size,
+            send_page_size=False,
+        )
 
     def create_webhook_subscription(self, model, url, actions):
         return self.post(
