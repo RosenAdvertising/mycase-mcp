@@ -21,6 +21,7 @@ MCP server for [MyCase](https://www.mycase.com/) — gives Claude full access to
 ## Requirements
 
 - Python 3.10+
+- Python MCP SDK >=2.2,<3 (MCP protocol revision: 2026-07-28)
 - A MyCase developer app (see setup below)
 - Claude Desktop or any MCP-compatible client
 

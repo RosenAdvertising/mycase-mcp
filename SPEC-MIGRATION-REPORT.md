@@ -1,10 +1,8 @@
 # MCP 2026-07-28 migration report
 
-> Integration status on `v2-2026-09-28`: **blocked**. This report records the
-> original spec branch's MCP 2.0.0 result. The merge preserves current main's
-> `mcp>=1.28.1,<2` requirement and MCP 1.30.0 lock. The imported server and
-> protocol tests require MCP 2 APIs, so this candidate does not start or pass
-> its full suite. See the fleet evidence report for the integration results.
+> Integration status on `v2-2026-09-28`: **local candidate passed** with
+> `mcp>=2.2,<3` locked to 2.2.0. This report records the original spec branch's
+> MCP 2.0.0 result; the round 2 fleet evidence records the current checks.
 
 ## Result
 
