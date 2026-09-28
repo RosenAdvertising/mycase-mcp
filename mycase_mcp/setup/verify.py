@@ -31,9 +31,8 @@ def check_api():
         from mycase_mcp.client import MyCaseClient
 
         client = MyCaseClient()
-        me = client.get_me()
-        name = me.get("full_name") or me.get("name") or "unknown"
-        print(f"✓ Authenticated as: {name}")
+        client.get_me()
+        print("✓ Authenticated MyCase user")
 
         cases = client.list_cases(page_size=5)
         if isinstance(cases, list):
