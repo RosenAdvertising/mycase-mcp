@@ -101,8 +101,7 @@ via the cross-platform [`keyring`](https://github.com/jaraco/keyring) library:
 | Windows | Credential Manager                       |
 | Linux   | Secret Service (GNOME Keyring / KWallet) |
 
-Secrets are saved under the service name `mycase-mcp`. Nothing is written to
-disk in clear text.
+Keyring entries use the service name `mycase-mcp`.
 
 **File fallback.** On a host with no keyring backend (e.g. a headless Linux box
 without Secret Service), or if you set `MYCASE_MCP_USE_KEYRING=0`, credentials

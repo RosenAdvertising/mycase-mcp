@@ -1,37 +1,27 @@
 # MCP specification delta: 2025-11-25 to 2026-07-28
 
-Research date: 2026-08-09. Sources are limited to the official MCP
-specification and the official MCP Python SDK documentation.
+Sources are the official MCP specification and Python SDK documentation.
 
-## Current target and migration release
+## Target and migration
 
-The repository currently targets MCP `2025-11-25`:
-
-- `pyproject.toml` declares `mcp>=1.28.1,<2`, and `uv.lock` resolves MCP Python
-  SDK 1.28.1.
-- An installed-from-lock baseline reports SDK `1.28.1` and
-  `LATEST_PROTOCOL_VERSION == "2025-11-25"`.
-- `mycase_mcp/server.py` constructs v1 `FastMCP` and calls `mcp.run()` without
-  overriding protocol negotiation or the default stdio transport.
-- The repository has no protocol-version guard or MCP conformance tests. Its
-  only file under `tests/` is an OpenAPI merge utility and pytest collects no
-  tests.
+The repository targets MCP `2026-07-28`. `pyproject.toml` requires
+`mcp>=2.2,<3`, and `uv.lock` resolves `mcp` and `mcp-types` to `2.2.0`.
+`mycase_mcp/server.py` constructs `MCPServer` with an explicit version and
+uses the default stdio transport. The protocol guard and conformance tests are
+under `tests/`.
 
 The official changelog says `2026-07-28` follows `2025-11-25`
 ([spec changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog)).
 The official v1-to-v2 guide identifies the high-level server rename and the
 other required SDK API changes
 ([SDK migration guide](https://py.sdk.modelcontextprotocol.io/migration/)).
-The proven fleet migration release is MCP Python SDK `2.0.0`, which implements
-the modern revision while retaining legacy negotiation.
+The locked SDK supports the modern revision and retains legacy negotiation.
 
 Verdicts below mean:
 
 - **AFFECTS-US**: this server exposes or relies on the changed surface. The SDK
-  may implement the wire behavior, but the migration must still pin, configure,
-  or test it.
-- **NOT-APPLICABLE**: the feature or direction is not implemented here. It will
-  not be added merely because the new revision permits it.
+  implements the wire behavior; the repository pins, configures, or tests it.
+- **NOT-APPLICABLE**: the feature or direction is not implemented here.
 
 ## Protocol negotiation and lifecycle
 
@@ -49,7 +39,7 @@ Verdicts below mean:
 
 | Normative change | Verdict | Why |
 | --- | --- | --- |
-| Streamable HTTP POST requests require `Mcp-Method`, plus `Mcp-Name` for named operations; `x-mcp-header` can map selected tool parameters to custom headers. [Source](https://modelcontextprotocol.io/specification/2026-07-28/changelog#minor-changes) | **NOT-APPLICABLE** | Production exposes stdio only and no tool parameter opts into `x-mcp-header`. The migration suite will still exercise SDK v2's raw HTTP adapter to prevent a future transport from silently bypassing the required routing headers. |
+| Streamable HTTP POST requests require `Mcp-Method`, plus `Mcp-Name` for named operations; `x-mcp-header` can map selected tool parameters to custom headers. [Source](https://modelcontextprotocol.io/specification/2026-07-28/changelog#minor-changes) | **NOT-APPLICABLE** | Production exposes stdio only and no tool parameter opts into `x-mcp-header`. The test suite exercises SDK HTTP routing in process. |
 | HTTP GET and `resources/subscribe` / `resources/unsubscribe` are replaced by opt-in `subscriptions/listen`; request-scoped notifications remain on their request stream. [Source](https://modelcontextprotocol.io/specification/2026-07-28/changelog#major-changes) | **AFFECTS-US** | The high-level server advertises SDK-managed prompt/resource/tool list-change and resource-subscription capabilities. SDK v2 maps those declarations to the modern transport; no custom publisher or event bus is added. |
 | SSE resumability and redelivery (`Last-Event-ID` and SSE event IDs) are removed. [Source](https://modelcontextprotocol.io/specification/2026-07-28/changelog#major-changes) | **NOT-APPLICABLE** | This stdio-only server configures neither an event store nor an HTTP resumption mechanism. |
 | HTTP+SSE is formally deprecated. [Source](https://modelcontextprotocol.io/specification/2026-07-28/changelog#deprecated) | **NOT-APPLICABLE** | The server exposes stdio only. |
@@ -68,8 +58,8 @@ Verdicts below mean:
 | --- | --- | --- |
 | `tools/list`, `prompts/list`, `resources/list`, `resources/templates/list`, and `resources/read` results require `ttlMs` and `cacheScope`. [Source](https://modelcontextprotocol.io/specification/2026-07-28/changelog#minor-changes) | **AFFECTS-US** | The server exposes 112 tools, three resources, and three prompts. The migration keeps conservative SDK defaults (`ttlMs: 0`, `cacheScope: private`) and tests every applicable category. |
 | Servers SHOULD return `tools/list` in deterministic order. [Source](https://modelcontextprotocol.io/specification/2026-07-28/changelog#minor-changes) | **AFFECTS-US** | Registration order is stable; repeated discovery must return the same 112 names. |
-| Tool schemas accept all JSON Schema 2020-12 keywords and `structuredContent` may be any JSON value, with bounds for references and composition. [Source](https://modelcontextprotocol.io/specification/2026-07-28/changelog#minor-changes) | **AFFECTS-US** | Decorators generate schemas for all tools. SDK v2 owns the revised schema models; tests must prove generated object schemas and schema-enforced bounded list limits remain valid. |
-| Resource-not-found changes from `-32002` to JSON-RPC Invalid Params `-32602`. [Source](https://modelcontextprotocol.io/specification/2026-07-28/changelog#minor-changes) | **AFFECTS-US** | The server exposes three static resources, so an unknown URI must return `-32602`. |
+| Tool schemas accept all JSON Schema 2020-12 keywords and `structuredContent` may be any JSON value, with bounds for references and composition. [Source](https://modelcontextprotocol.io/specification/2026-07-28/changelog#minor-changes) | **AFFECTS-US** | Decorators generate schemas for all tools. SDK v2 owns the revised schema models; tests assert generated object schemas and schema-enforced bounded list limits. |
+| Resource-not-found uses JSON-RPC Invalid Params `-32602`. [Source](https://modelcontextprotocol.io/specification/2026-07-28/changelog#minor-changes) | **AFFECTS-US** | The server exposes three static resources, so an unknown URI must return `-32602`. |
 | URL-mode elicitation loses its completion notification and `elicitationId`; retry correlation uses application `requestState`. [Source](https://modelcontextprotocol.io/specification/2026-07-28/changelog#minor-changes) | **NOT-APPLICABLE** | The server performs no elicitation. |
 | Generated JSON Schema models numeric minimum, maximum, and default values as numbers rather than integers. [Source](https://modelcontextprotocol.io/specification/2026-07-28/changelog#other-schema-changes) | **NOT-APPLICABLE** | The repository neither vendors the MCP schema nor validates directly against that generated meta-schema. SDK v2 absorbs the correction. |
 
@@ -86,7 +76,7 @@ Verdicts below mean:
 
 | Normative change | Verdict | Why |
 | --- | --- | --- |
-| MCP reserves `-32020..-32099`; HeaderMismatch, MissingRequiredClientCapability, and UnsupportedProtocolVersion are `-32020`, `-32021`, and `-32022`; unknown methods use `-32601`. [Source](https://modelcontextprotocol.io/specification/2026-07-28/changelog#minor-changes) | **AFFECTS-US** | SDK v2 dispatch must produce the modern codes. Raw-wire tests will cover header mismatch, unsupported version, unknown method, and resource Invalid Params. No operation requires a new optional client capability, so `-32021` is not manufactured solely for a test. |
+| MCP reserves `-32020..-32099`; HeaderMismatch, MissingRequiredClientCapability, and UnsupportedProtocolVersion are `-32020`, `-32021`, and `-32022`; unknown methods use `-32601`. [Source](https://modelcontextprotocol.io/specification/2026-07-28/changelog#minor-changes) | **AFFECTS-US** | SDK dispatch produces the modern codes. Raw-wire tests cover header mismatch, unsupported version, unknown method, and resource Invalid Params. No operation requires a new optional client capability, so `-32021` is not manufactured solely for a test. |
 | `_meta` formally carries W3C `traceparent`, `tracestate`, and `baggage`. [Source](https://modelcontextprotocol.io/specification/2026-07-28/changelog#minor-changes) | **NOT-APPLICABLE** | The server has no MCP `_meta` tracing integration. SDK propagation does not require application code. |
 
 The changelog's governance and SEP workflow changes impose no runtime or wire
@@ -105,8 +95,6 @@ The official SDK migration guide maps to this code as follows:
 - Rely on SDK v2 models (now supplied through `mcp-types`) for snake-case Python
   fields and unchanged camel-case wire fields. The application constructs no MCP
   result model directly.
-- Synchronous tool/resource/prompt functions now execute on worker threads. The
-  existing primitives are synchronous and require no semantic rewrite.
 - No low-level server, v1 client helper, SDK OAuth, context, elicitation,
   sampling, roots, or logging API is used, so those migration-guide sections are
   not applicable.

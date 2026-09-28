@@ -1,107 +1,50 @@
-# MCP 2026-07-28 migration report
+# MCP 2026-07-28 migration
 
-> Integration status on `v2-2026-09-28`: **local candidate passed** with
-> `mcp>=2.2,<3` locked to 2.2.0. This report records the original spec branch's
-> MCP 2.0.0 result; the round 2 fleet evidence records the current checks.
+This server targets MCP protocol revision `2026-07-28`. Its Python requirement
+is `mcp>=2.2,<3`; `uv.lock` resolves both `mcp` and its companion `mcp-types`
+to `2.2.0`. The protocol change classification and source links are in
+[SPEC-DELTA-2026-07-28.md](SPEC-DELTA-2026-07-28.md).
 
-## Result
+## Server and protocol behavior
 
-`mycase-mcp` now targets MCP `2026-07-28`, up from `2025-11-25`. The direct
-Python SDK dependency changed from `mcp>=1.28.1,<2` (locked to 1.28.1) to the
-exact fleet migration release `mcp==2.0.0`. The refreshed lock includes the SDK
-v2 dependency split, including `mcp-types==2.0.0`.
+- The server uses SDK `MCPServer` with version `0.1.0`. Its shipped entry point
+  runs over stdio. It declares 112 tools, three resources, and three prompts.
+- SDK discovery and modern requests support `2026-07-28`; legacy client mode
+  can still negotiate `2025-11-25`.
+- Modern discovery, list, read, and tool results use `resultType: complete`.
+  Cacheable list and read results retain private, zero-TTL SDK defaults.
+- The test suite exercises modern HTTP routing in process, including required
+  protocol, method, and name headers, unsupported versions, missing resources,
+  and unknown methods. The product does not configure an HTTP entry point.
+- Collection tools expose a bounded `limit` (1–200). The client forwards it as
+  `page_size` where supported and caps returned collections locally. It does
+  not add automatic pagination or an unsupported sort control.
+- The local OAuth callback checks state and sends restrictive response headers.
+  Setup and verification avoid printing secrets or authenticated person details.
 
-The authoritative repository-specific change classification and official
-sources are in [`SPEC-DELTA-2026-07-28.md`](SPEC-DELTA-2026-07-28.md).
+## Reproduce local checks
 
-No deployment, live MyCase account, credential store, or remote Git repository
-was touched. Nothing was pushed.
+Use the repository's locked virtual environment and fake credentials. Disable
+keyring lookup so these checks do not consult a user's credential store. The
+suite uses stubbed vendor clients, an in-process MCP HTTP transport, and a
+loopback OAuth callback.
 
-## Implementation
+```bash
+MYCASE_CLIENT_ID=offline-test MYCASE_CLIENT_SECRET=offline-test MYCASE_MCP_USE_KEYRING=0 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 .venv/bin/python -m pytest -q tests
+.venv/bin/ruff check mycase_mcp/__init__.py mycase_mcp/client.py mycase_mcp/server.py mycase_mcp/setup/oauth_flow.py mycase_mcp/setup/verify.py tests/spec_check.py tests/test_list_tool_controls.py tests/test_security_regressions.py tests/test_spec_2026_07_28.py
+MYCASE_CLIENT_ID=offline-test MYCASE_CLIENT_SECRET=offline-test MYCASE_MCP_USE_KEYRING=0 .venv/bin/python tests/spec_check.py
+uv lock --check --offline
+```
 
-- Replaced v1 `FastMCP` with SDK v2 `MCPServer`, preserving the default stdio
-  entry point, 112 tools, three resources, and three prompts.
-- Added an explicit server version and retained SDK v2's dual-era support:
-  modern clients negotiate `2026-07-28`, while legacy mode still negotiates
-  `2025-11-25`.
-- Kept downstream MyCase OAuth credentials, token persistence, synchronous API
-  client behavior, resources, prompts, and existing write operations.
-- Kept conservative SDK cache defaults (`ttlMs: 0`, `cacheScope: private`) and
-  added no MCP session state, extension, MRTR feature, or custom notification
-  bus.
-- Added a protocol guard and raw-wire modern HTTP tests even though the shipped
-  entry point remains stdio-only.
-- Added an explicit core Ruff policy for the declared Python 3.10 floor.
+These checks cover local SDK and protocol behavior. Live MyCase OAuth and API
+responses, deployed transports, and other Python/platform combinations are
+outside their scope. One header helper assertion checks the helper's own
+output; separate HTTP request tests exercise server routing errors.
 
-## AFFECTS-US handling
+## Open product decision
 
-| Change | Handling |
-| --- | --- |
-| Stateless modern protocol and removal of modern initialize | SDK v2 dual-era dispatcher; discovery/sessionless and modern/legacy client regressions. |
-| Required `server/discover` | Exact version, identity, capabilities, cache fields, and result type asserted. |
-| Required `resultType` | Complete results asserted for discovery, lists, resource reads, and a tool call. |
-| HTTP routing headers | Raw requests carry `Mcp-Protocol-Version`, `Mcp-Method`, and `Mcp-Name`; method/name omission and mismatch return `-32020`. |
-| Modern subscription/listen mapping | SDK-managed prompt/resource/tool declarations preserved without adding a publisher or custom bus. |
-| Capability extensions | Discovery proves no unused extension is advertised. |
-| Required cache hints | Private, zero-TTL hints asserted for every list/read category. |
-| Deterministic tools | Two independent listings return the same 112 tool names. |
-| JSON Schema 2020-12 | All generated schemas remain objects; every collection tool has schema-enforced bounds. |
-| Resource not found | Unknown resource regression asserts Invalid Params `-32602`. |
-| Reserved modern errors | Header mismatch `-32020`, unsupported version `-32022`, and unknown method `-32601` asserted. |
-
-## Canary sibling checks
-
-- **A — FIXED/CLEAN:** all 31 `list_*` tools now expose a `limit` constrained
-  to 1–200. The client sends it as MyCase's documented `page_size` where that
-  parameter exists and locally caps plain-list or enveloped responses, so a
-  vendor over-delivery cannot exceed the requested total. There was no
-  auto-pagination. The retained vendor OpenAPI history contains no collection
-  `sort` or `order` query parameter, so no unsupported control was invented.
-- **B — FIXED:** local OAuth callback rejections now emit a PII-free reason for
-  unexpected path, missing code/state, or state mismatch. Existing CLI
-  validation failures already emit a user-facing reason or raise a bounded
-  error rather than silently denying an MCP request.
-- **C — FIXED / PATTERN-N-A:** this repository serves only a loopback OAuth GET
-  callback, not an origin-guarded browser form or a CSP-restricted cross-origin
-  authorization handoff. Applying `Sec-Fetch-Site: same-origin` would reject the
-  legitimate cross-site OAuth redirect. The applicable hardening was added:
-  OAuth state binding plus `default-src 'none'`, `frame-ancestors 'none'`,
-  `base-uri 'none'`, `form-action 'none'`, `no-referrer`, `nosniff`, and
-  `no-store` response headers.
-- **D — FIXED/CLEAN:** the verifier no longer prints the authenticated person's
-  name; the secret prompt no longer echoes; the authorization URL is not
-  printed; and API/OAuth error bodies are not copied into exceptions or setup
-  output. A regression uses private name/email markers and proves they do not
-  reach output. No `sub`, email, or person-name value reaches application log
-  calls in the final sweep.
-
-## Verification
-
-Baseline, installed from the original lock:
-
-- SDK 1.28.1, latest protocol `2025-11-25`.
-- `pytest -q`: 0 tests collected (0/0, pytest exit 5).
-- Ruff: 12 pre-existing findings.
-
-Final, installed from the refreshed lock:
-
-- `uv run --frozen pytest -q`: **19 passed**.
-- `tests/test_spec_2026_07_28.py`: **9 passed**.
-- List-control and security regressions: **10 passed**.
-- `uv run --frozen python tests/spec_check.py`: **PASS (`2026-07-28`)**.
-- `uv run --frozen ruff check .`: **all checks passed**.
-- Package and test compilation: passed.
-- Stdio entry point with EOF: started and exited successfully.
-
-No live MyCase account test was performed because the migration requires no
-credentials. Vendor request methods and parameters were verified offline; live
-account behavior remains method-verified-only.
-
-## Git sandbox and handoff
-
-The runtime permits worktree writes but rejects this repository's `.git` writes
-with `index.lock: Operation not permitted`. The required commits were created
-on `spec-2026-07-28` in the authorized alternate Git database. A portable bundle
-containing the complete branch history is exported to the fan-out scratchpad
-and must be imported into a writable clone. The scratchpad handoff report
-contains its exact path, verification result, and complete `git log --oneline`.
+MCP 2.2.0 masks messages from tool exceptions other than `ToolError` or
+`ResourceError`, so clients receive a generic tool failure for those cases.
+Retaining the masking limits information leakage; explicitly safe `ToolError`
+messages could give clients more actionable feedback. Toby should decide the
+policy. Existing tool exception handling remains unchanged.
