@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import threading
 from http.server import HTTPServer
+from types import SimpleNamespace
 from urllib.parse import urlencode
 
 import requests
@@ -80,3 +81,62 @@ def test_verifier_does_not_print_authenticated_person_name(monkeypatch, capsys) 
     assert "Authenticated MyCase user" in output
     assert private_name not in output
     assert "private@example.test" not in output
+
+
+def test_token_refresh_uses_a_finite_timeout(monkeypatch, tmp_path) -> None:
+    calls = []
+
+    def post(url, *, data, timeout):
+        calls.append((url, data, timeout))
+        return SimpleNamespace(
+            status_code=200, json=lambda: {"access_token": "test-access"}
+        )
+
+    monkeypatch.setattr(client_module, "CONFIG_DIR", tmp_path)
+    monkeypatch.setattr(client_module, "CLIENT_ID", "test-client")
+    monkeypatch.setattr(client_module, "CLIENT_SECRET", "test-secret")
+    monkeypatch.setattr(client_module.requests, "post", post)
+    manager = client_module.TokenManager()
+    manager.tokens = {"refresh_token": "test-refresh"}
+
+    result = manager.refresh()
+
+    assert len(calls) == 1
+    assert calls[0][0] == client_module.TOKEN_URL
+    assert calls[0][2] == 30
+    assert result["access_token"] == "test-access"
+    assert result["refresh_token"] == "test-refresh"
+
+
+def test_oauth_token_exchange_uses_a_finite_timeout(monkeypatch, tmp_path) -> None:
+    calls = []
+
+    def post(url, *, data, timeout):
+        calls.append((url, data, timeout))
+        return SimpleNamespace(
+            status_code=200, json=lambda: {"access_token": "test-access"}
+        )
+
+    class CallbackServer:
+        def handle_request(self):
+            oauth_flow._auth_code = "test-code"
+
+        def server_close(self):
+            pass
+
+    monkeypatch.setattr("builtins.input", lambda _prompt: "test-client")
+    monkeypatch.setattr(oauth_flow, "getpass", lambda _prompt: "test-secret")
+    monkeypatch.setattr(oauth_flow.webbrowser, "open", lambda _url: True)
+    monkeypatch.setattr(oauth_flow, "HTTPServer", lambda *_args: CallbackServer())
+    monkeypatch.setattr(oauth_flow.requests, "post", post)
+    monkeypatch.setattr(oauth_flow.credentials, "set_secret", lambda *_args: "file")
+    monkeypatch.setattr(oauth_flow, "CONFIG_DIR", tmp_path)
+    monkeypatch.setattr(oauth_flow, "_auth_code", None)
+    monkeypatch.setattr(oauth_flow, "_oauth_state", None)
+
+    oauth_flow.main()
+
+    assert len(calls) == 1
+    assert calls[0][0] == oauth_flow.TOKEN_URL
+    assert calls[0][1]["code"] == "test-code"
+    assert calls[0][2] == 30
