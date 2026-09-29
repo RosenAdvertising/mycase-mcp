@@ -47,7 +47,14 @@ def check_api():
 
         return True
     except Exception as e:
-        print(f"✗ API check failed: {e}")
+        from mycase_mcp.client import MyCaseToolError
+
+        message = (
+            str(e)
+            if isinstance(e, MyCaseToolError)
+            else "Unexpected verification failure. Check configuration and retry."
+        )
+        print(f"✗ API check failed: {message}")
         return False
 
 

@@ -190,6 +190,8 @@ def test_resource_read_cache_hints_and_not_found_error() -> None:
         _post_modern("resources/read", {"uri": "mycase://does-not-exist"})
     )
     assert missing.status_code == 400
+    error_message = missing.json()["error"]["message"]
+    assert error_message == "Resource not found"
     assert missing.json()["error"]["code"] == -32602
 
 

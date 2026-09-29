@@ -2,13 +2,16 @@
 """MyCase API v1 client. Handles OAuth tokens, auto-refresh, and all API operations."""
 
 import json
+import math
 import os
-import sys
 import time
+import tempfile
+from decimal import Decimal, InvalidOperation
 import requests
 from mcp.server.mcpserver.exceptions import ToolError
 from pathlib import Path
 from datetime import datetime, timezone
+from urllib.parse import quote
 
 from mycase_mcp import credentials
 
@@ -32,7 +35,7 @@ class MissingCredentialsError(MyCaseToolError):
     def __init__(self, reason: str = ""):
         super().__init__(
             "MyCase is not configured. Run mycase-mcp-setup to connect your account "
-            "and configure the required OAuth credentials."
+            "and configure the required OAuth credentials, then restart mycase-mcp."
         )
 
 
@@ -41,6 +44,20 @@ class ReauthorizationRequiredError(MyCaseToolError):
         super().__init__(
             "The MyCase authorization expired or was rejected. "
             "Run mycase-mcp-setup to reauthorize the account."
+        )
+
+
+class AccessDeniedError(MyCaseToolError):
+    def __init__(self):
+        super().__init__(
+            "MyCase access denied: the connected account lacks permission for this action (or the authorization expired; re-run mycase-mcp-setup if so)."
+        )
+
+
+class TransportOutcomeUnknownError(MyCaseToolError):
+    def __init__(self, method):
+        super().__init__(
+            f"MyCase {method} request outcome is unknown. Check whether it completed before retrying."
         )
 
 
@@ -59,7 +76,9 @@ class VendorHTTPError(MyCaseToolError):
         self.status = status
         self.code = code if isinstance(code, str) and code in _VENDOR_REASONS else ""
         reason = _VENDOR_REASONS.get(self.code, "request failed")
-        if status == 404 or self.code == "not_found":
+        if status == 403:
+            message = "MyCase access denied: the connected account lacks permission for this action (or the authorization expired; re-run mycase-mcp-setup if so)."
+        elif status == 404 or self.code == "not_found":
             message = (
                 f"The requested MyCase record was not found (HTTP {status}). "
                 "Check the record ID."
@@ -71,7 +90,7 @@ class VendorHTTPError(MyCaseToolError):
 
 class RateLimitedError(MyCaseToolError):
     def __init__(self, retry_after: int):
-        self.retry_after = min(300, max(1, retry_after))
+        self.retry_after = max(1, retry_after)
         super().__init__(
             f"MyCase rate limit reached. Retry after {self.retry_after} seconds."
         )
@@ -79,10 +98,31 @@ class RateLimitedError(MyCaseToolError):
 
 def _safe_retry_after(resp, default=10):
     try:
-        value = int(resp.headers.get("Retry-After", default))
-    except (TypeError, ValueError, OverflowError):
+        value = Decimal(str(resp.headers.get("Retry-After", default)))
+        if not value.is_finite() or value.adjusted() > 308:
+            return default
+        value = math.ceil(value)
+    except (TypeError, ValueError, OverflowError, InvalidOperation):
         return default
-    return min(300, max(1, value))
+    return max(1, value)
+
+
+def _atomic_token_write(path, tokens):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(prefix=".tokens-", dir=path.parent)
+    try:
+        os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "w") as stream:
+            json.dump(tokens, stream, indent=2)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    except BaseException:
+        try:
+            os.unlink(temporary)
+        except OSError:
+            pass
+        raise
 
 
 def _vendor_code(resp):
@@ -140,10 +180,7 @@ class TokenManager:
 
     def save(self, tokens):
         self.tokens = tokens
-        self.token_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.token_file, "w") as f:
-            json.dump(tokens, f, indent=2)
-        os.chmod(self.token_file, 0o600)
+        _atomic_token_write(self.token_file, tokens)
 
     @property
     def access_token(self):
@@ -158,16 +195,20 @@ class TokenManager:
             raise ReauthorizationRequiredError()
         if not CLIENT_ID or not CLIENT_SECRET:
             raise MissingCredentialsError("client_credentials")
-        resp = requests.post(
-            TOKEN_URL,
-            data={
-                "client_id": CLIENT_ID,
-                "client_secret": CLIENT_SECRET,
-                "grant_type": "refresh_token",
-                "refresh_token": self.refresh_token,
-            },
-            timeout=30,
-        )
+        try:
+            resp = requests.post(
+                TOKEN_URL,
+                data={
+                    "client_id": CLIENT_ID,
+                    "client_secret": CLIENT_SECRET,
+                    "grant_type": "refresh_token",
+                    "refresh_token": self.refresh_token,
+                },
+                allow_redirects=False,
+                timeout=30,
+            )
+        except (requests.Timeout, requests.ConnectionError):
+            raise TransportOutcomeUnknownError("POST token refresh") from None
         if resp.status_code == 200:
             new_tokens = _json_response(resp)
             if "refresh_token" not in new_tokens:
@@ -175,8 +216,10 @@ class TokenManager:
             new_tokens["refreshed_at"] = datetime.now(timezone.utc).isoformat()
             self.save(new_tokens)
             return new_tokens
-        if resp.status_code in (400, 401, 403):
+        if resp.status_code in (400, 401):
             raise ReauthorizationRequiredError()
+        if resp.status_code == 403:
+            raise AccessDeniedError()
         if resp.status_code == 429:
             raise RateLimitedError(_safe_retry_after(resp))
         raise VendorHTTPError(resp.status_code, _vendor_code(resp))
@@ -197,23 +240,47 @@ class MyCaseClient:
         )
 
     def _request(
-        self, method, path, params=None, json_body=None, retry=True, _rate_retries=0
+        self,
+        method,
+        path,
+        params=None,
+        json_body=None,
+        retry=True,
+        _rate_retries=0,
+        _retry_sleep=0,
     ):
         url = f"{BASE_URL}/{path.lstrip('/')}"
-        resp = self.session.request(
-            method, url, params=params, json=json_body, allow_redirects=False
-        )
+        try:
+            resp = self.session.request(
+                method,
+                url,
+                params=params,
+                json=json_body,
+                allow_redirects=False,
+                timeout=30,
+            )
+        except (requests.Timeout, requests.ConnectionError):
+            if method.upper() != "GET":
+                raise TransportOutcomeUnknownError(method.upper()) from None
+            raise
 
         if resp.status_code == 401 and retry:
             self.tm.refresh()
             self.session.headers["Authorization"] = f"Bearer {self.tm.access_token}"
             return self._request(
-                method, path, params=params, json_body=json_body, retry=False
+                method,
+                path,
+                params=params,
+                json_body=json_body,
+                retry=False,
+                _rate_retries=_rate_retries,
+                _retry_sleep=_retry_sleep,
             )
 
         if resp.status_code == 429 and _rate_retries < 3:
             retry_after = _retry_after_seconds(resp)
-            print(f"Rate limited. Waiting {retry_after}s...", file=sys.stderr)
+            if _retry_sleep + retry_after > 60:
+                raise RateLimitedError(_safe_retry_after(resp))
             time.sleep(retry_after)
             return self._request(
                 method,
@@ -222,12 +289,15 @@ class MyCaseClient:
                 json_body=json_body,
                 retry=retry,
                 _rate_retries=_rate_retries + 1,
+                _retry_sleep=_retry_sleep + retry_after,
             )
 
         if resp.status_code == 429:
             raise RateLimitedError(_safe_retry_after(resp))
 
-        if resp.status_code in (401, 403):
+        if resp.status_code == 403:
+            raise AccessDeniedError()
+        if resp.status_code == 401:
             raise ReauthorizationRequiredError()
 
         # 202 Accepted = queued, no body (e.g. POST /calls)
@@ -238,11 +308,7 @@ class MyCaseClient:
         if resp.status_code == 204:
             return {"success": True}
 
-        # 302 = signed download URL in Location header (document data endpoints)
-        if resp.status_code == 302:
-            return {"download_url": resp.headers.get("Location")}
-
-        if not resp.ok:
+        if not 200 <= resp.status_code < 300:
             raise VendorHTTPError(resp.status_code, _vendor_code(resp))
 
         return _json_response(resp)
@@ -279,7 +345,7 @@ class MyCaseClient:
         return self._list("/staff", page_size)
 
     def get_staff(self, staff_id):
-        return self.get(f"/staff/{staff_id}")
+        return self.get(f"/staff/{quote(str(staff_id), safe='')}")
 
     # ── Cases ─────────────────────────────────────────────────────────────────
 
@@ -290,7 +356,7 @@ class MyCaseClient:
         return self._list("/cases", page_size, params)
 
     def get_case(self, case_id):
-        return self.get(f"/cases/{case_id}")
+        return self.get(f"/cases/{quote(str(case_id), safe='')}")
 
     def create_case(
         self, name, description=None, status="open", case_stage=None, practice_area=None
@@ -305,20 +371,21 @@ class MyCaseClient:
         return self.post("/cases", body)
 
     def update_case(self, case_id, **fields):
-        return self.put(f"/cases/{case_id}", fields)
+        return self.put(f"/cases/{quote(str(case_id), safe='')}", fields)
 
     def delete_case(self, case_id):
-        return self.delete(f"/cases/{case_id}")
+        return self.delete(f"/cases/{quote(str(case_id), safe='')}")
 
     def list_cases_for_client(self, client_id, page_size=25):
-        return self._list(f"/clients/{client_id}/cases", page_size)
+        return self._list(f"/clients/{quote(str(client_id), safe='')}/cases", page_size)
 
     def add_client_to_case(self, case_id, client_id, role=None):
         entry = {"id": client_id}
         if role:
             entry["role"] = role
         return self.post(
-            f"/cases/{case_id}/relationships/clients", {"clients": [entry]}
+            f"/cases/{quote(str(case_id), safe='')}/relationships/clients",
+            {"clients": [entry]},
         )
 
     def add_company_to_case(self, case_id, company_id, role=None):
@@ -326,12 +393,14 @@ class MyCaseClient:
         if role:
             entry["role"] = role
         return self.post(
-            f"/cases/{case_id}/relationships/companies", {"companies": [entry]}
+            f"/cases/{quote(str(case_id), safe='')}/relationships/companies",
+            {"companies": [entry]},
         )
 
     def add_staff_to_case(self, case_id, staff_id):
         return self.post(
-            f"/cases/{case_id}/relationships/staff", {"staff": [{"id": staff_id}]}
+            f"/cases/{quote(str(case_id), safe='')}/relationships/staff",
+            {"staff": [{"id": staff_id}]},
         )
 
     # ── Clients ───────────────────────────────────────────────────────────────
@@ -359,7 +428,7 @@ class MyCaseClient:
         return self._list("/clients", page_size, params)
 
     def get_client(self, client_id):
-        return self.get(f"/clients/{client_id}")
+        return self.get(f"/clients/{quote(str(client_id), safe='')}")
 
     def create_client(self, first_name, last_name, email=None, cell_phone_number=None):
         body = {"first_name": first_name, "last_name": last_name}
@@ -370,10 +439,10 @@ class MyCaseClient:
         return self.post("/clients", body)
 
     def update_client(self, client_id, **fields):
-        return self.put(f"/clients/{client_id}", fields)
+        return self.put(f"/clients/{quote(str(client_id), safe='')}", fields)
 
     def delete_client(self, client_id):
-        return self.delete(f"/clients/{client_id}")
+        return self.delete(f"/clients/{quote(str(client_id), safe='')}")
 
     # ── Companies ─────────────────────────────────────────────────────────────
 
@@ -388,7 +457,7 @@ class MyCaseClient:
         return self._list("/companies", page_size, params)
 
     def get_company(self, company_id):
-        return self.get(f"/companies/{company_id}")
+        return self.get(f"/companies/{quote(str(company_id), safe='')}")
 
     def create_company(self, name, email=None, main_phone_number=None, website=None):
         body = {"name": name}
@@ -401,14 +470,14 @@ class MyCaseClient:
         return self.post("/companies", body)
 
     def update_company(self, company_id, **fields):
-        return self.put(f"/companies/{company_id}", fields)
+        return self.put(f"/companies/{quote(str(company_id), safe='')}", fields)
 
     def delete_company(self, company_id):
-        return self.delete(f"/companies/{company_id}")
+        return self.delete(f"/companies/{quote(str(company_id), safe='')}")
 
     def add_client_to_company(self, company_id, client_id):
         return self.post(
-            f"/companies/{company_id}/relationships/clients",
+            f"/companies/{quote(str(company_id), safe='')}/relationships/clients",
             {"clients": [{"id": client_id}]},
         )
 
@@ -436,14 +505,15 @@ class MyCaseClient:
         return self.post("/tasks", body)
 
     def update_task(self, task_id, **fields):
-        return self.put(f"/tasks/{task_id}", fields)
+        return self.put(f"/tasks/{quote(str(task_id), safe='')}", fields)
 
     def delete_task(self, task_id):
-        return self.delete(f"/tasks/{task_id}")
+        return self.delete(f"/tasks/{quote(str(task_id), safe='')}")
 
     def assign_task_to_staff(self, task_id, staff_id):
         return self.post(
-            f"/tasks/{task_id}/relationships/staff", {"staff": [{"id": staff_id}]}
+            f"/tasks/{quote(str(task_id), safe='')}/relationships/staff",
+            {"staff": [{"id": staff_id}]},
         )
 
     # ── Events ────────────────────────────────────────────────────────────────
@@ -478,14 +548,15 @@ class MyCaseClient:
         return self.post("/events", body)
 
     def update_event(self, event_id, **fields):
-        return self.put(f"/events/{event_id}", fields)
+        return self.put(f"/events/{quote(str(event_id), safe='')}", fields)
 
     def delete_event(self, event_id):
-        return self.delete(f"/events/{event_id}")
+        return self.delete(f"/events/{quote(str(event_id), safe='')}")
 
     def add_staff_to_event(self, event_id, staff_id):
         return self.post(
-            f"/events/{event_id}/relationships/staff", {"staff": [{"id": staff_id}]}
+            f"/events/{quote(str(event_id), safe='')}/relationships/staff",
+            {"staff": [{"id": staff_id}]},
         )
 
     # ── Time Entries ──────────────────────────────────────────────────────────
@@ -497,7 +568,7 @@ class MyCaseClient:
         return self._list("/time_entries", page_size, params)
 
     def get_time_entry(self, entry_id):
-        return self.get(f"/time_entries/{entry_id}")
+        return self.get(f"/time_entries/{quote(str(entry_id), safe='')}")
 
     def create_time_entry(
         self,
@@ -524,7 +595,7 @@ class MyCaseClient:
         return self.post("/time_entries", body)
 
     def delete_time_entry(self, entry_id):
-        return self.delete(f"/time_entries/{entry_id}")
+        return self.delete(f"/time_entries/{quote(str(entry_id), safe='')}")
 
     # ── Invoices ──────────────────────────────────────────────────────────────
 
@@ -537,13 +608,13 @@ class MyCaseClient:
         return self._list("/invoices", page_size, params)
 
     def delete_invoice(self, invoice_id):
-        return self.delete(f"/invoices/{invoice_id}")
+        return self.delete(f"/invoices/{quote(str(invoice_id), safe='')}")
 
     def record_invoice_payment(self, invoice_id, amount, date, notes=None):
         body = {"amount": amount, "date": date}
         if notes:
             body["notes"] = notes
-        return self.post(f"/invoices/{invoice_id}/payments", body)
+        return self.post(f"/invoices/{quote(str(invoice_id), safe='')}/payments", body)
 
     def list_invoice_payments(self, page_size=25, status=None, payable_id=None):
         params = {}
@@ -556,7 +627,7 @@ class MyCaseClient:
     # ── Notes ─────────────────────────────────────────────────────────────────
 
     def get_note(self, note_id):
-        return self.get(f"/notes/{note_id}")
+        return self.get(f"/notes/{quote(str(note_id), safe='')}")
 
     def update_note(self, note_id, note=None, subject=None, date=None):
         body = {}
@@ -566,31 +637,32 @@ class MyCaseClient:
             body["subject"] = subject
         if date:
             body["date"] = date
-        return self.put(f"/notes/{note_id}", body)
+        return self.put(f"/notes/{quote(str(note_id), safe='')}", body)
 
     def delete_note(self, note_id):
-        return self.delete(f"/notes/{note_id}")
+        return self.delete(f"/notes/{quote(str(note_id), safe='')}")
 
     def list_case_notes(self, case_id, page_size=25):
-        return self._list(f"/cases/{case_id}/notes", page_size)
+        return self._list(f"/cases/{quote(str(case_id), safe='')}/notes", page_size)
 
     def create_case_note(self, case_id, note, subject, date):
         return self.post(
-            f"/cases/{case_id}/notes", {"note": note, "subject": subject, "date": date}
+            f"/cases/{quote(str(case_id), safe='')}/notes",
+            {"note": note, "subject": subject, "date": date},
         )
 
     def list_client_notes(self, client_id, page_size=25):
-        return self._list(f"/clients/{client_id}/notes", page_size)
+        return self._list(f"/clients/{quote(str(client_id), safe='')}/notes", page_size)
 
     def create_client_note(self, client_id, note, subject, date):
         return self.post(
-            f"/clients/{client_id}/notes",
+            f"/clients/{quote(str(client_id), safe='')}/notes",
             {"note": note, "subject": subject, "date": date},
         )
 
     def create_company_note(self, company_id, note, subject, date):
         return self.post(
-            f"/companies/{company_id}/notes",
+            f"/companies/{quote(str(company_id), safe='')}/notes",
             {"note": note, "subject": subject, "date": date},
         )
 
@@ -603,7 +675,7 @@ class MyCaseClient:
         return self._list("/documents", page_size, params)
 
     def get_document(self, doc_id):
-        return self.get(f"/documents/{doc_id}")
+        return self.get(f"/documents/{quote(str(doc_id), safe='')}")
 
     def update_document(self, doc_id, name=None, description=None):
         body = {}
@@ -611,23 +683,23 @@ class MyCaseClient:
             body["filename"] = name
         if description:
             body["description"] = description
-        return self.put(f"/documents/{doc_id}", body)
+        return self.put(f"/documents/{quote(str(doc_id), safe='')}", body)
 
     def delete_document(self, doc_id):
-        return self.delete(f"/documents/{doc_id}")
+        return self.delete(f"/documents/{quote(str(doc_id), safe='')}")
 
     def list_document_versions(self, doc_id, page_size=25):
         return self._list(
-            f"/documents/{doc_id}/versions",
+            f"/documents/{quote(str(doc_id), safe='')}/versions",
             page_size,
             send_page_size=False,
         )
 
     def list_case_documents(self, case_id, page_size=25):
-        return self._list(f"/cases/{case_id}/documents", page_size)
+        return self._list(f"/cases/{quote(str(case_id), safe='')}/documents", page_size)
 
     def get_case_folder(self, case_id):
-        return self.get(f"/cases/{case_id}/folder")
+        return self.get(f"/cases/{quote(str(case_id), safe='')}/folder")
 
     def upload_document(
         self, filename, path, description=None, assigned_date=None, staff_id=None
@@ -649,22 +721,26 @@ class MyCaseClient:
             body["description"] = description
         if assigned_date:
             body["assigned_date"] = assigned_date
-        return self.post(f"/cases/{case_id}/documents", body)
+        return self.post(f"/cases/{quote(str(case_id), safe='')}/documents", body)
 
     def list_all_document_versions(self, page_size=25):
         return self._list("/document_versions", page_size)
 
     def upload_document_version(self, doc_id):
-        return self.post(f"/documents/{doc_id}/versions")
+        return self.post(f"/documents/{quote(str(doc_id), safe='')}/versions")
 
     def get_document_data(self, doc_id):
-        return self.get(f"/documents/{doc_id}/data")
+        return self.get(f"/documents/{quote(str(doc_id), safe='')}/data")
 
     def get_document_version_data(self, doc_id, version_number):
-        return self.get(f"/documents/{doc_id}/versions/{version_number}/data")
+        return self.get(
+            f"/documents/{quote(str(doc_id), safe='')}/versions/{quote(str(version_number), safe='')}/data"
+        )
 
     def delete_document_version(self, doc_id, version_number):
-        return self.delete(f"/documents/{doc_id}/versions/{version_number}")
+        return self.delete(
+            f"/documents/{quote(str(doc_id), safe='')}/versions/{quote(str(version_number), safe='')}"
+        )
 
     # ── Leads ─────────────────────────────────────────────────────────────────
 
@@ -675,7 +751,7 @@ class MyCaseClient:
         return self._list("/leads", page_size, params)
 
     def get_lead(self, lead_id):
-        return self.get(f"/leads/{lead_id}")
+        return self.get(f"/leads/{quote(str(lead_id), safe='')}")
 
     def create_lead(
         self,
@@ -695,7 +771,7 @@ class MyCaseClient:
         return self.post("/leads", body)
 
     def update_lead(self, lead_id, **fields):
-        return self.put(f"/leads/{lead_id}", fields)
+        return self.put(f"/leads/{quote(str(lead_id), safe='')}", fields)
 
     # ── Message Threads ───────────────────────────────────────────────────────
 
@@ -732,16 +808,20 @@ class MyCaseClient:
             body["client_recipients"] = [{"id": i} for i in client_ids]
         if staff_ids:
             body["staff_recipients"] = [{"id": i} for i in staff_ids]
-        return self.post(f"/cases/{case_id}/message_threads", body)
+        return self.post(f"/cases/{quote(str(case_id), safe='')}/message_threads", body)
 
     def list_client_message_threads(self, client_id, page_size=25):
-        return self._list(f"/clients/{client_id}/message_threads", page_size)
+        return self._list(
+            f"/clients/{quote(str(client_id), safe='')}/message_threads", page_size
+        )
 
     def post_message(self, thread_id, body_text, sender_id=None):
         body = {"body": body_text}
         if sender_id:
             body["sender"] = {"id": sender_id}
-        return self.post(f"/message_threads/{thread_id}/messages", body)
+        return self.post(
+            f"/message_threads/{quote(str(thread_id), safe='')}/messages", body
+        )
 
     # ── Reference Data ────────────────────────────────────────────────────────
 
@@ -752,10 +832,10 @@ class MyCaseClient:
         return self.post("/case_stages", {"name": name})
 
     def update_case_stage(self, stage_id, name):
-        return self.put(f"/case_stages/{stage_id}", {"name": name})
+        return self.put(f"/case_stages/{quote(str(stage_id), safe='')}", {"name": name})
 
     def delete_case_stage(self, stage_id):
-        return self.delete(f"/case_stages/{stage_id}")
+        return self.delete(f"/case_stages/{quote(str(stage_id), safe='')}")
 
     def list_case_roles(self, page_size=50):
         return self._list("/case_roles", page_size)
@@ -788,10 +868,10 @@ class MyCaseClient:
         return self.post("/locations", body)
 
     def update_location(self, location_id, **fields):
-        return self.put(f"/locations/{location_id}", fields)
+        return self.put(f"/locations/{quote(str(location_id), safe='')}", fields)
 
     def delete_location(self, location_id):
-        return self.delete(f"/locations/{location_id}")
+        return self.delete(f"/locations/{quote(str(location_id), safe='')}")
 
     def list_people_groups(self, page_size=50):
         return self._list("/people_groups", page_size)
@@ -800,10 +880,12 @@ class MyCaseClient:
         return self.post("/people_groups", {"name": name})
 
     def update_people_group(self, group_id, name):
-        return self.put(f"/people_groups/{group_id}", {"name": name})
+        return self.put(
+            f"/people_groups/{quote(str(group_id), safe='')}", {"name": name}
+        )
 
     def delete_people_group(self, group_id):
-        return self.delete(f"/people_groups/{group_id}")
+        return self.delete(f"/people_groups/{quote(str(group_id), safe='')}")
 
     def list_practice_areas(self, page_size=50):
         return self._list("/practice_areas", page_size)
@@ -812,10 +894,12 @@ class MyCaseClient:
         return self.post("/practice_areas", {"name": name})
 
     def update_practice_area(self, area_id, name):
-        return self.put(f"/practice_areas/{area_id}", {"name": name})
+        return self.put(
+            f"/practice_areas/{quote(str(area_id), safe='')}", {"name": name}
+        )
 
     def delete_practice_area(self, area_id):
-        return self.delete(f"/practice_areas/{area_id}")
+        return self.delete(f"/practice_areas/{quote(str(area_id), safe='')}")
 
     def list_custom_fields(self, page_size=50):
         return self._list("/custom_fields", page_size)
@@ -827,32 +911,34 @@ class MyCaseClient:
         return self.post("/custom_fields", body)
 
     def get_custom_field(self, field_id):
-        return self.get(f"/custom_fields/{field_id}")
+        return self.get(f"/custom_fields/{quote(str(field_id), safe='')}")
 
     def delete_custom_field(self, field_id):
-        return self.delete(f"/custom_fields/{field_id}")
+        return self.delete(f"/custom_fields/{quote(str(field_id), safe='')}")
 
     def list_custom_field_options(self, field_id, page_size=25):
         return self._list(
-            f"/custom_fields/{field_id}/list_options",
+            f"/custom_fields/{quote(str(field_id), safe='')}/list_options",
             page_size,
             send_page_size=False,
         )
 
     def create_custom_field_option(self, field_id, option_value):
         return self.post(
-            f"/custom_fields/{field_id}/list_options",
+            f"/custom_fields/{quote(str(field_id), safe='')}/list_options",
             {"list_options": [{"option_value": option_value}]},
         )
 
     def update_custom_field_option(self, field_id, key, option_value):
         return self.put(
-            f"/custom_fields/{field_id}/list_options/{key}",
+            f"/custom_fields/{quote(str(field_id), safe='')}/list_options/{quote(str(key), safe='')}",
             {"option_value": option_value},
         )
 
     def delete_custom_field_option(self, field_id, key):
-        return self.delete(f"/custom_fields/{field_id}/list_options/{key}")
+        return self.delete(
+            f"/custom_fields/{quote(str(field_id), safe='')}/list_options/{quote(str(key), safe='')}"
+        )
 
     # ── Expenses ──────────────────────────────────────────────────────────────
 
@@ -863,7 +949,7 @@ class MyCaseClient:
         return self._list("/expenses", page_size, params)
 
     def get_expense(self, expense_id):
-        return self.get(f"/expenses/{expense_id}")
+        return self.get(f"/expenses/{quote(str(expense_id), safe='')}")
 
     def create_expense(
         self,
@@ -893,7 +979,7 @@ class MyCaseClient:
         return self.post("/expenses", body)
 
     def delete_expense(self, expense_id):
-        return self.delete(f"/expenses/{expense_id}")
+        return self.delete(f"/expenses/{quote(str(expense_id), safe='')}")
 
     # ── Calls ─────────────────────────────────────────────────────────────────
 
@@ -957,21 +1043,27 @@ class MyCaseClient:
             body["call_type"] = call_type
         if resolved is not None:
             body["resolved"] = resolved
-        return self.put(f"/calls/{call_id}", body)
+        return self.put(f"/calls/{quote(str(call_id), safe='')}", body)
 
     def delete_call(self, call_id):
-        return self.delete(f"/calls/{call_id}")
+        return self.delete(f"/calls/{quote(str(call_id), safe='')}")
 
     # ── Folders ───────────────────────────────────────────────────────────────
 
     def list_folder_documents(self, folder_id, page_size=25):
-        return self._list(f"/folders/{folder_id}/documents", page_size)
+        return self._list(
+            f"/folders/{quote(str(folder_id), safe='')}/documents", page_size
+        )
 
     def list_folder_subfolders(self, folder_id, page_size=25):
-        return self._list(f"/folders/{folder_id}/subfolders", page_size)
+        return self._list(
+            f"/folders/{quote(str(folder_id), safe='')}/subfolders", page_size
+        )
 
     def create_case_subfolder(self, case_id, path):
-        return self.post(f"/cases/{case_id}/subfolders", {"path": path})
+        return self.post(
+            f"/cases/{quote(str(case_id), safe='')}/subfolders", {"path": path}
+        )
 
     # ── Webhooks ──────────────────────────────────────────────────────────────
 
@@ -988,4 +1080,6 @@ class MyCaseClient:
         )
 
     def delete_webhook_subscription(self, subscription_id):
-        return self.delete(f"/webhooks/subscriptions/{subscription_id}")
+        return self.delete(
+            f"/webhooks/subscriptions/{quote(str(subscription_id), safe='')}"
+        )

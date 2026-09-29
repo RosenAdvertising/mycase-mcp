@@ -6,15 +6,28 @@ import logging
 from typing import Annotated
 
 from mcp.server import MCPServer
-from mcp.server.mcpserver.context import Context
-from mcp.server.mcpserver.exceptions import ToolError, UnexpectedToolError
+from mcp.server.mcpserver.exceptions import (
+    ResourceError,
+    ResourceNotFoundError,
+    ToolError,
+    UnexpectedToolError,
+    UnexpectedResourceError,
+)
 from mcp.shared.exceptions import MCPError
 from mcp.types import CallToolResult, TextContent
 from pydantic import Field, ValidationError
 
 import requests
 
-from .client import MyCaseClient, MyCaseToolError
+from .client import (
+    AccessDeniedError,
+    MissingCredentialsError,
+    MyCaseClient,
+    RateLimitedError,
+    ReauthorizationRequiredError,
+    TransportOutcomeUnknownError,
+    VendorHTTPError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -50,18 +63,14 @@ def _validation_message(tool, error):
 class SafeMCPServer(MCPServer):
     """Expose classified errors without logging exception text or caller input."""
 
-    async def _handle_call_tool(self, ctx, params):
-        context = Context(
-            request_context=ctx,
-            mcp_server=self,
-            input_params=params,
-            subscriptions=self._subscriptions,
-        )
-        tool = self._tool_manager.get_tool(params.name)
+    async def call_tool(self, name, arguments, context=None):
+        tool = None
         try:
-            return await self.call_tool(params.name, params.arguments or {}, context)
+            tool = self._tool_manager.get_tool(name)
+            return await super().call_tool(name, arguments, context)
         except MCPError:
-            raise
+            logger.error("tool_call_failed reason=unexpected")
+            return _result(f"Error executing tool {name if tool else 'unknown'}")
         except Exception as exc:
             cause = (
                 exc.__cause__ if isinstance(exc, ToolError) and exc.__cause__ else exc
@@ -72,7 +81,17 @@ class SafeMCPServer(MCPServer):
                 and isinstance(cause, ValidationError)
             ):
                 message = _validation_message(tool, cause)
-            elif isinstance(cause, MyCaseToolError):
+            elif isinstance(
+                cause,
+                (
+                    MissingCredentialsError,
+                    ReauthorizationRequiredError,
+                    AccessDeniedError,
+                    VendorHTTPError,
+                    RateLimitedError,
+                    TransportOutcomeUnknownError,
+                ),
+            ):
                 message = str(cause)
             elif isinstance(cause, requests.Timeout):
                 message = "MyCase request timed out. Retry shortly."
@@ -80,11 +99,27 @@ class SafeMCPServer(MCPServer):
                 message = "Could not connect to MyCase. Check connectivity and retry."
             else:
                 logger.error("tool_call_failed reason=unexpected")
-                return _result(
-                    f"Error executing tool {params.name if tool else 'unknown'}"
-                )
+                return _result(f"Error executing tool {name if tool else 'unknown'}")
             logger.info("tool_call_failed reason=anticipated")
             return _result(message)
+
+    async def read_resource(self, uri, context=None):
+        try:
+            return await super().read_resource(uri, context)
+        except ResourceNotFoundError:
+            raise ResourceNotFoundError("Resource not found") from None
+        except UnexpectedResourceError:
+            logger.error("resource_read_failed reason=unexpected")
+            raise ResourceError("Error reading resource") from None
+        except ResourceError:
+            logger.error("resource_read_failed reason=resource_error")
+            raise ResourceError("Error reading resource") from None
+        except MCPError:
+            logger.error("resource_read_failed reason=mcp_error")
+            raise ResourceError("Error reading resource") from None
+        except Exception:
+            logger.error("resource_read_failed reason=unexpected")
+            raise ResourceError("Error reading resource") from None
 
 
 def _result(message: str) -> CallToolResult:

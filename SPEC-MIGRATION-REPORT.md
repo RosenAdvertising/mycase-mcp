@@ -41,10 +41,14 @@ responses, deployed transports, and other Python/platform combinations are
 outside their scope. One header helper assertion checks the helper's own
 output; separate HTTP request tests exercise server routing errors.
 
-## Open product decision
+## Public error behavior
 
-MCP 2.2.0 masks messages from tool exceptions other than `ToolError` or
-`ResourceError`, so clients receive a generic tool failure for those cases.
-Retaining the masking limits information leakage; explicitly safe `ToolError`
-messages could give clients more actionable feedback. Toby should decide the
-policy. Existing tool exception handling remains unchanged.
+Tool calls return anticipated, reviewed failures as `CallToolResult` values with
+`isError=true`. The server exposes safe messages for missing credentials,
+reauthorization, access denial, rate limits, HTTP status classes, transport
+failures, and documented argument validation. A timeout or connection failure
+on a write reports that completion is unknown and advises checking the result
+before retrying. Unexpected failures use a fixed generic message; exception
+text, request URLs, response bodies, and argument values are not returned to
+clients or written to logs. Resource read failures likewise use a fixed public
+message and do not log exception details.

@@ -14,6 +14,7 @@ import logging
 import os
 import secrets
 import sys
+import tempfile
 import webbrowser
 from getpass import getpass
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -88,8 +89,17 @@ def main():
     _oauth_state = secrets.token_urlsafe(32)
     print("=== mycase-mcp OAuth Setup ===\n")
 
-    client_id = input("MyCase Client ID: ").strip()
-    client_secret = getpass("MyCase Client Secret: ").strip()
+    try:
+        client_id = input("MyCase Client ID: ").strip()
+        if not client_id:
+            print("Error: Client ID and Secret are required.")
+            sys.exit(1)
+        client_secret = getpass("MyCase Client Secret: ").strip()
+    except (EOFError, OSError, KeyboardInterrupt):
+        print(
+            "Error: MyCase credentials were not provided. Run mycase-mcp-setup again."
+        )
+        sys.exit(1)
 
     if not client_id or not client_secret:
         print("Error: Client ID and Secret are required.")
@@ -119,23 +129,41 @@ def main():
         sys.exit(1)
 
     print("Exchanging code for tokens...")
-    resp = requests.post(
-        TOKEN_URL,
-        data={
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "grant_type": "authorization_code",
-            "code": _auth_code,
-            "redirect_uri": REDIRECT_URI,
-        },
-        timeout=30,
-    )
+    try:
+        resp = requests.post(
+            TOKEN_URL,
+            data={
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "grant_type": "authorization_code",
+                "code": _auth_code,
+                "redirect_uri": REDIRECT_URI,
+            },
+            allow_redirects=False,
+            timeout=30,
+        )
+    except requests.RequestException:
+        print(
+            "Token exchange outcome is unknown. Check whether authorization completed "
+            "before retrying setup."
+        )
+        sys.exit(1)
 
+    if resp.status_code == 403:
+        print(
+            "MyCase access denied: the connected account lacks permission for this action "
+            "(or the authorization expired; re-run mycase-mcp-setup if so)."
+        )
+        sys.exit(1)
     if resp.status_code != 200:
         print(f"Token exchange failed ({resp.status_code}).")
         sys.exit(1)
 
-    tokens = resp.json()
+    try:
+        tokens = resp.json()
+    except ValueError:
+        print("Token exchange failed: invalid response. Re-run mycase-mcp-setup.")
+        sys.exit(1)
 
     backend = credentials.set_secret("MYCASE_CLIENT_ID", client_id)
     credentials.set_secret("MYCASE_CLIENT_SECRET", client_secret)
@@ -143,9 +171,20 @@ def main():
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
     token_file = CONFIG_DIR / "tokens.json"
-    with open(token_file, "w") as f:
-        json.dump(tokens, f, indent=2)
-    os.chmod(token_file, 0o600)
+    fd, temporary = tempfile.mkstemp(prefix=".tokens-", dir=CONFIG_DIR)
+    try:
+        os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "w") as f:
+            json.dump(tokens, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temporary, token_file)
+    except BaseException:
+        try:
+            os.unlink(temporary)
+        except OSError:
+            pass
+        raise
 
     if backend == "keyring":
         print(
