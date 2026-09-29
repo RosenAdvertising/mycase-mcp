@@ -324,9 +324,7 @@ def add_client_to_company(company_id: int, client_id: int) -> str:
 def list_tasks(updated_after: str = "", limit: ListLimit = 25) -> str:
     """List tasks. updated_after: ISO 8601 datetime to filter recently changed tasks."""
     return json.dumps(
-        MyCaseClient().list_tasks(
-            updated_after=updated_after or None, page_size=limit
-        ),
+        MyCaseClient().list_tasks(updated_after=updated_after or None, page_size=limit),
         indent=2,
     )
 
@@ -520,9 +518,7 @@ def delete_time_entry(entry_id: int) -> str:
 
 
 @mcp.tool()
-def list_invoices(
-    case_id: int = 0, status: str = "", limit: ListLimit = 25
-) -> str:
+def list_invoices(case_id: int = 0, status: str = "", limit: ListLimit = 25) -> str:
     """List invoices. status: draft | sent | paid | overdue."""
     return json.dumps(
         MyCaseClient().list_invoices(
@@ -1158,9 +1154,7 @@ def delete_expense(expense_id: int) -> str:
 def list_calls(limit: ListLimit = 25, updated_after: str = "") -> str:
     """List calls in the firm's call log. updated_after: ISO 8601."""
     return json.dumps(
-        MyCaseClient().list_calls(
-            page_size=limit, updated_after=updated_after or None
-        ),
+        MyCaseClient().list_calls(page_size=limit, updated_after=updated_after or None),
         indent=2,
     )
 

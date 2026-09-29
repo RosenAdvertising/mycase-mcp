@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from typing import Any
+from typing import cast
 
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
@@ -58,7 +59,7 @@ def test_list_tool_rejects_out_of_bounds_limit(limit: int) -> None:
     assert tool is not None
 
     with pytest.raises(ToolError, match="validation error"):
-        asyncio.run(tool.run({"limit": limit}, None))
+        asyncio.run(tool.run({"limit": limit}, cast(Any, None)))
 
 
 def test_vendor_over_delivery_is_capped_for_plain_list_response() -> None:
@@ -77,8 +78,9 @@ def test_vendor_over_delivery_is_capped_inside_response_envelope() -> None:
 
     result = client.list_tasks(page_size=4)
 
-    assert [item["id"] for item in result["data"]] == [0, 1, 2, 3]
-    assert result["meta"] == {}
+    envelope = cast(dict[str, Any], result)
+    assert [item["id"] for item in envelope["data"]] == [0, 1, 2, 3]
+    assert envelope["meta"] == {}
     assert client.requests == [("/tasks", {"page_size": 4})]
 
 

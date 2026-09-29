@@ -207,9 +207,7 @@ def test_modern_tool_result_is_complete(monkeypatch) -> None:
     )
     result = _result(response)
     assert result["resultType"] == "complete"
-    assert json.loads(result["content"][0]["text"]) == [
-        {"id": 7, "role": "staff"}
-    ]
+    assert json.loads(result["content"][0]["text"]) == [{"id": 7, "role": "staff"}]
 
 
 def test_raw_modern_requests_carry_protocol_method_and_name_headers() -> None:
@@ -232,9 +230,7 @@ def test_http_requires_method_and_name_routing_headers() -> None:
         ),
     )
     for method, params, dropped in cases:
-        response = asyncio.run(
-            _post_modern(method, params, drop_headers=dropped)
-        )
+        response = asyncio.run(_post_modern(method, params, drop_headers=dropped))
         assert response.status_code == 400
         assert response.json()["error"]["code"] == -32020
 

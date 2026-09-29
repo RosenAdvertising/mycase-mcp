@@ -17,7 +17,7 @@ def _callback_request(params: dict[str, str]) -> requests.Response:
     httpd = HTTPServer(("127.0.0.1", 0), oauth_flow._CallbackHandler)
     thread = threading.Thread(target=httpd.handle_request)
     thread.start()
-    host, port = httpd.server_address
+    host, port = httpd.server_address[:2]
     try:
         return requests.get(
             f"http://{host}:{port}/callback?{urlencode(params)}",
