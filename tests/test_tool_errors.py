@@ -247,9 +247,73 @@ def test_all_requests_have_timeout_and_redirects_disabled(
     assert observed["allow_redirects"] is False
 
 
-def test_redirect_never_reports_success(fake_http):
-    fake_http(302, {"success": True})
-    assert _call() == "MyCase API returned HTTP 302: request failed."
+@pytest.mark.parametrize("status", [302, 307, 308])
+def test_redirect_never_reports_success_even_with_json_body(fake_http, status):
+    fake_http(status, {"success": True, "access_token": "private-token"})
+    assert _call() == f"MyCase API returned HTTP {status}: request failed."
+
+
+@pytest.mark.parametrize("status", [302, 307, 308])
+def test_token_refresh_redirect_is_rejected_even_with_json_body(
+    fake_http, monkeypatch, status
+):
+    fake_http(401)
+    response = SimpleNamespace(
+        status_code=status,
+        headers={"Location": "https://example.test/private-token"},
+        json=lambda: {"access_token": "private-token"},
+    )
+    calls = []
+
+    def post(url, *, data, timeout, allow_redirects):
+        calls.append((url, timeout, allow_redirects))
+        return response
+
+    monkeypatch.setattr(requests, "post", post)
+    assert _call() == f"MyCase API returned HTTP {status}: request failed."
+    assert calls == [(client.TOKEN_URL, 30, False)]
+
+
+@pytest.mark.parametrize("status", [302, 307, 308])
+def test_oauth_exchange_redirect_does_not_save_json_tokens(
+    monkeypatch, capsys, tmp_path, status
+):
+    from mycase_mcp.setup import oauth_flow
+
+    calls = []
+
+    def post(url, *, data, timeout, allow_redirects):
+        calls.append((url, timeout, allow_redirects))
+        return SimpleNamespace(
+            status_code=status,
+            headers={"Location": "https://example.test/private-token"},
+            json=lambda: {"access_token": "private-token"},
+        )
+
+    class CallbackServer:
+        def handle_request(self):
+            oauth_flow._auth_code = "fake-code"
+
+        def server_close(self):
+            pass
+
+    monkeypatch.setattr("builtins.input", lambda _prompt: "fake-client")
+    monkeypatch.setattr(oauth_flow, "getpass", lambda _prompt: "fake-secret")
+    monkeypatch.setattr(oauth_flow.webbrowser, "open", lambda _url: True)
+    monkeypatch.setattr(oauth_flow, "HTTPServer", lambda *_args: CallbackServer())
+    monkeypatch.setattr(oauth_flow.requests, "post", post)
+    monkeypatch.setattr(oauth_flow.credentials, "set_secret", lambda *_args: "file")
+    monkeypatch.setattr(oauth_flow, "CONFIG_DIR", tmp_path)
+    monkeypatch.setattr(oauth_flow, "_auth_code", None)
+    monkeypatch.setattr(oauth_flow, "_oauth_state", None)
+
+    with pytest.raises(SystemExit) as exit_result:
+        oauth_flow.main()
+
+    assert exit_result.value.code == 1
+    assert calls == [(oauth_flow.TOKEN_URL, 30, False)]
+    assert f"Token exchange failed ({status})" in capsys.readouterr().out
+    assert not (tmp_path / "tokens.json").exists()
 
 
 @pytest.mark.parametrize("method", ["GET", "POST", "PUT", "DELETE"])
