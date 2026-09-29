@@ -565,3 +565,26 @@ def test_setup_token_exchange_timeout_reports_unknown_outcome(
     assert "before retrying setup" in output
     assert PRIVATE not in output
     assert "Traceback" not in output
+
+
+def test_fallback_credentials_are_private_before_writing(tmp_path, monkeypatch):
+    import os
+    from mycase_mcp import credentials
+
+    config = tmp_path / "config"
+    target = config / ".env"
+    monkeypatch.setattr(credentials, "CONFIG_DIR", config)
+    monkeypatch.setattr(credentials, "ENV_FILE", target)
+    original = os.fdopen
+    modes = []
+
+    def checked_open(fd, *args, **kwargs):
+        modes.append(os.fstat(fd).st_mode & 0o777)
+        return original(fd, *args, **kwargs)
+
+    monkeypatch.setattr(os, "fdopen", checked_open)
+    credentials._write_env_file({"TEST_CREDENTIAL": "first-fake-value"})
+    target.chmod(0o644)
+    credentials._write_env_file({"TEST_CREDENTIAL": "replacement-fake-value"})
+    assert modes == [0o600, 0o600]
+    assert target.read_text() == "TEST_CREDENTIAL=replacement-fake-value\n"
