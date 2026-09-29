@@ -2,14 +2,98 @@
 """MyCase MCP Server — full MyCase API coverage via the MCP Python SDK."""
 
 import json
+import logging
 from typing import Annotated
 
 from mcp.server import MCPServer
-from pydantic import Field
+from mcp.server.mcpserver.context import Context
+from mcp.server.mcpserver.exceptions import ToolError, UnexpectedToolError
+from mcp.shared.exceptions import MCPError
+from mcp.types import CallToolResult, TextContent
+from pydantic import Field, ValidationError
 
-from .client import MyCaseClient
+import requests
 
-mcp = MCPServer(
+from .client import MyCaseClient, MyCaseToolError
+
+logger = logging.getLogger(__name__)
+
+
+def _expected_shape(prop):
+    if "anyOf" in prop:
+        return " or ".join(_expected_shape(option) for option in prop["anyOf"])
+    shape = prop.get("type", "a value matching the documented schema")
+    if "minimum" in prop and "maximum" in prop:
+        shape += f" between {prop['minimum']} and {prop['maximum']}"
+    elif "minimum" in prop:
+        shape += f" >= {prop['minimum']}"
+    elif "maximum" in prop:
+        shape += f" <= {prop['maximum']}"
+    return shape
+
+
+def _validation_message(tool, error):
+    properties = tool.parameters.get("properties", {}) if tool else {}
+    fields = {
+        issue["loc"][0]
+        for issue in error.errors()
+        if issue.get("loc") and issue["loc"][0] in properties
+    }
+    if not fields:
+        return "Invalid arguments: use the tool's documented input names and types."
+    return " ".join(
+        f"Invalid argument '{field}': expected {_expected_shape(properties[field])}."
+        for field in sorted(fields)
+    )
+
+
+class SafeMCPServer(MCPServer):
+    """Expose classified errors without logging exception text or caller input."""
+
+    async def _handle_call_tool(self, ctx, params):
+        context = Context(
+            request_context=ctx,
+            mcp_server=self,
+            input_params=params,
+            subscriptions=self._subscriptions,
+        )
+        tool = self._tool_manager.get_tool(params.name)
+        try:
+            return await self.call_tool(params.name, params.arguments or {}, context)
+        except MCPError:
+            raise
+        except Exception as exc:
+            cause = (
+                exc.__cause__ if isinstance(exc, ToolError) and exc.__cause__ else exc
+            )
+            if (
+                isinstance(exc, ToolError)
+                and not isinstance(exc, UnexpectedToolError)
+                and isinstance(cause, ValidationError)
+            ):
+                message = _validation_message(tool, cause)
+            elif isinstance(cause, MyCaseToolError):
+                message = str(cause)
+            elif isinstance(cause, requests.Timeout):
+                message = "MyCase request timed out. Retry shortly."
+            elif isinstance(cause, requests.ConnectionError):
+                message = "Could not connect to MyCase. Check connectivity and retry."
+            else:
+                logger.error("tool_call_failed reason=unexpected")
+                return _result(
+                    f"Error executing tool {params.name if tool else 'unknown'}"
+                )
+            logger.info("tool_call_failed reason=anticipated")
+            return _result(message)
+
+
+def _result(message: str) -> CallToolResult:
+    return CallToolResult(
+        content=[TextContent(type="text", text=message)], is_error=True
+    )
+
+
+mcp = SafeMCPServer(
     "mycase-mcp",
     version="0.1.0",
     instructions="Full access to MyCase practice management: cases, clients, companies, tasks, calendar, time entries, invoices, notes, documents, leads, messaging, and more.",

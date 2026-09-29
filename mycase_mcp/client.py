@@ -6,6 +6,7 @@ import os
 import sys
 import time
 import requests
+from mcp.server.mcpserver.exceptions import ToolError
 from pathlib import Path
 from datetime import datetime, timezone
 
@@ -23,20 +24,92 @@ CLIENT_ID = os.environ.get("MYCASE_CLIENT_ID", "")
 CLIENT_SECRET = os.environ.get("MYCASE_CLIENT_SECRET", "")
 
 
-def _retry_after_seconds(resp, default=10):
+class MyCaseToolError(ToolError, RuntimeError):
+    """An anticipated failure with a reviewed, client-safe message."""
+
+
+class MissingCredentialsError(MyCaseToolError):
+    def __init__(self, reason: str = ""):
+        super().__init__(
+            "MyCase is not configured. Run mycase-mcp-setup to connect your account "
+            "and configure the required OAuth credentials."
+        )
+
+
+class ReauthorizationRequiredError(MyCaseToolError):
+    def __init__(self, reason: str = ""):
+        super().__init__(
+            "The MyCase authorization expired or was rejected. "
+            "Run mycase-mcp-setup to reauthorize the account."
+        )
+
+
+_VENDOR_REASONS = {
+    "invalid_request": "request rejected",
+    "invalid_grant": "authorization rejected",
+    "not_found": "record not found",
+    "forbidden": "access denied",
+    "rate_limited": "rate limited",
+    "invalid_response": "response was not valid JSON",
+}
+
+
+class VendorHTTPError(MyCaseToolError):
+    def __init__(self, status: int, code: str = ""):
+        self.status = status
+        self.code = code if isinstance(code, str) and code in _VENDOR_REASONS else ""
+        reason = _VENDOR_REASONS.get(self.code, "request failed")
+        if status == 404 or self.code == "not_found":
+            message = (
+                f"The requested MyCase record was not found (HTTP {status}). "
+                "Check the record ID."
+            )
+        else:
+            message = f"MyCase API returned HTTP {status}: {reason}."
+        super().__init__(message)
+
+
+class RateLimitedError(MyCaseToolError):
+    def __init__(self, retry_after: int):
+        self.retry_after = min(300, max(1, retry_after))
+        super().__init__(
+            f"MyCase rate limit reached. Retry after {self.retry_after} seconds."
+        )
+
+
+def _safe_retry_after(resp, default=10):
     try:
-        return int(resp.headers.get("Retry-After", default))
-    except (TypeError, ValueError):
+        value = int(resp.headers.get("Retry-After", default))
+    except (TypeError, ValueError, OverflowError):
         return default
+    return min(300, max(1, value))
+
+
+def _vendor_code(resp):
+    try:
+        body = resp.json()
+    except (ValueError, TypeError):
+        return ""
+    if isinstance(body, dict):
+        error = body.get("error")
+        candidates = [body.get("code"), error]
+        if isinstance(error, dict):
+            candidates.append(error.get("code"))
+        for code in candidates:
+            if isinstance(code, str) and code in _VENDOR_REASONS:
+                return code
+    return ""
+
+
+def _retry_after_seconds(resp, default=10):
+    return _safe_retry_after(resp, default)
 
 
 def _json_response(resp):
     try:
         return resp.json()
     except ValueError:
-        raise RuntimeError(
-            f"MyCase API returned a non-JSON response ({resp.status_code})"
-        )
+        raise VendorHTTPError(resp.status_code, "invalid_response") from None
 
 
 def _cap_list_response(payload, limit):
@@ -82,11 +155,9 @@ class TokenManager:
 
     def refresh(self):
         if not self.refresh_token:
-            raise RuntimeError("No refresh token. Run: mycase-mcp-setup")
+            raise ReauthorizationRequiredError()
         if not CLIENT_ID or not CLIENT_SECRET:
-            raise RuntimeError(
-                "MYCASE_CLIENT_ID and MYCASE_CLIENT_SECRET are required. Run: mycase-mcp-setup"
-            )
+            raise MissingCredentialsError("client_credentials")
         resp = requests.post(
             TOKEN_URL,
             data={
@@ -104,14 +175,18 @@ class TokenManager:
             new_tokens["refreshed_at"] = datetime.now(timezone.utc).isoformat()
             self.save(new_tokens)
             return new_tokens
-        raise RuntimeError(f"Token refresh failed ({resp.status_code})")
+        if resp.status_code in (400, 401, 403):
+            raise ReauthorizationRequiredError()
+        if resp.status_code == 429:
+            raise RateLimitedError(_safe_retry_after(resp))
+        raise VendorHTTPError(resp.status_code, _vendor_code(resp))
 
 
 class MyCaseClient:
     def __init__(self):
         self.tm = TokenManager()
         if not self.tm.access_token and not self.tm.refresh_token:
-            raise RuntimeError("No MyCase OAuth tokens found. Run: mycase-mcp-setup")
+            raise MissingCredentialsError("oauth_tokens")
         self.session = requests.Session()
         self.session.headers.update(
             {
@@ -149,6 +224,12 @@ class MyCaseClient:
                 _rate_retries=_rate_retries + 1,
             )
 
+        if resp.status_code == 429:
+            raise RateLimitedError(_safe_retry_after(resp))
+
+        if resp.status_code in (401, 403):
+            raise ReauthorizationRequiredError()
+
         # 202 Accepted = queued, no body (e.g. POST /calls)
         if resp.status_code == 202:
             return {"accepted": True}
@@ -162,7 +243,7 @@ class MyCaseClient:
             return {"download_url": resp.headers.get("Location")}
 
         if not resp.ok:
-            raise RuntimeError(f"MyCase API error {resp.status_code}")
+            raise VendorHTTPError(resp.status_code, _vendor_code(resp))
 
         return _json_response(resp)
 
