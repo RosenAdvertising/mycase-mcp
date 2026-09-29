@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import logging
-import threading
-from http.server import HTTPServer
+from io import BytesIO
 from types import SimpleNamespace
 from urllib.parse import urlencode
 
@@ -15,18 +14,30 @@ from mycase_mcp.setup import oauth_flow, verify
 
 
 def _callback_request(params: dict[str, str]) -> requests.Response:
-    httpd = HTTPServer(("127.0.0.1", 0), oauth_flow._CallbackHandler)
-    thread = threading.Thread(target=httpd.handle_request)
-    thread.start()
-    host, port = httpd.server_address[:2]
-    try:
-        return requests.get(
-            f"http://{host}:{port}/callback?{urlencode(params)}",
-            timeout=3,
-        )
-    finally:
-        thread.join(timeout=3)
-        httpd.server_close()
+    captured = {"headers": {}, "status": 0}
+
+    class InProcessHandler(oauth_flow._CallbackHandler):
+        def __init__(self):
+            self.path = f"/callback?{urlencode(params)}"
+            self.wfile = BytesIO()
+
+        def send_response(self, code, message=None):
+            captured["status"] = code
+
+        def send_header(self, keyword, value):
+            captured["headers"][keyword.lower()] = value
+
+        def end_headers(self):
+            pass
+
+    handler = InProcessHandler()
+    handler.do_GET()
+    response = requests.Response()
+    response.status_code = captured["status"]
+    response.headers.update(captured["headers"])
+    assert isinstance(handler.wfile, BytesIO)
+    response._content = handler.wfile.getvalue()
+    return response
 
 
 def test_oauth_callback_is_state_bound_and_csp_hardened() -> None:
@@ -83,11 +94,36 @@ def test_verifier_does_not_print_authenticated_person_name(monkeypatch, capsys) 
     assert "private@example.test" not in output
 
 
+def test_verifier_uses_safe_typed_error_and_masks_unknown(monkeypatch, capsys) -> None:
+    private = "private verification exception"
+
+    class TypedFailure:
+        def __init__(self):
+            raise client_module.VendorHTTPError(401, private)
+
+    monkeypatch.setattr(client_module, "MyCaseClient", TypedFailure)
+    assert verify.check_api() is False
+    typed_output = capsys.readouterr().out
+    assert "MyCase API returned HTTP 401" in typed_output
+    assert private not in typed_output
+
+    class UnknownFailure:
+        def __init__(self):
+            raise RuntimeError(private)
+
+    monkeypatch.setattr(client_module, "MyCaseClient", UnknownFailure)
+    assert verify.check_api() is False
+    unknown_output = capsys.readouterr().out
+    assert "Unexpected verification failure" in unknown_output
+    assert private not in unknown_output
+    assert "Traceback" not in unknown_output
+
+
 def test_token_refresh_uses_a_finite_timeout(monkeypatch, tmp_path) -> None:
     calls = []
 
-    def post(url, *, data, timeout):
-        calls.append((url, data, timeout))
+    def post(url, *, data, timeout, allow_redirects):
+        calls.append((url, data, timeout, allow_redirects))
         return SimpleNamespace(
             status_code=200, json=lambda: {"access_token": "test-access"}
         )
@@ -104,6 +140,7 @@ def test_token_refresh_uses_a_finite_timeout(monkeypatch, tmp_path) -> None:
     assert len(calls) == 1
     assert calls[0][0] == client_module.TOKEN_URL
     assert calls[0][2] == 30
+    assert calls[0][3] is False
     assert result["access_token"] == "test-access"
     assert result["refresh_token"] == "test-refresh"
 
@@ -111,8 +148,8 @@ def test_token_refresh_uses_a_finite_timeout(monkeypatch, tmp_path) -> None:
 def test_oauth_token_exchange_uses_a_finite_timeout(monkeypatch, tmp_path) -> None:
     calls = []
 
-    def post(url, *, data, timeout):
-        calls.append((url, data, timeout))
+    def post(url, *, data, timeout, allow_redirects):
+        calls.append((url, data, timeout, allow_redirects))
         return SimpleNamespace(
             status_code=200, json=lambda: {"access_token": "test-access"}
         )
@@ -140,3 +177,7 @@ def test_oauth_token_exchange_uses_a_finite_timeout(monkeypatch, tmp_path) -> No
     assert calls[0][0] == oauth_flow.TOKEN_URL
     assert calls[0][1]["code"] == "test-code"
     assert calls[0][2] == 30
+    assert calls[0][3] is False
+    token_file = tmp_path / "tokens.json"
+    assert token_file.stat().st_mode & 0o777 == 0o600
+    assert not list(tmp_path.glob(".tokens-*"))
