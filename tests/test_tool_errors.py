@@ -453,14 +453,15 @@ def test_unknown_resource_failure_is_redacted(caplog, monkeypatch):
 def test_token_file_is_created_atomically_with_private_mode(tmp_path, monkeypatch):
     import os
 
-    original_dump = client.json.dump
+    original_fdopen = os.fdopen
     modes = []
 
-    def checked_dump(value, stream, **kwargs):
-        modes.append(os.fstat(stream.fileno()).st_mode & 0o777)
-        return original_dump(value, stream, **kwargs)
+    def checked_fdopen(fd, *args, **kwargs):
+        modes.append(os.fstat(fd).st_mode & 0o777)
+        assert os.fstat(fd).st_size == 0
+        return original_fdopen(fd, *args, **kwargs)
 
-    monkeypatch.setattr(client.json, "dump", checked_dump)
+    monkeypatch.setattr(os, "fdopen", checked_fdopen)
     manager = client.TokenManager()
     manager.token_file = tmp_path / "tokens.json"
     manager.token_file.write_text("{}")

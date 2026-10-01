@@ -5,7 +5,6 @@ import json
 import math
 import os
 import re
-import tempfile
 import time
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
@@ -17,6 +16,8 @@ from mcp.server.mcpserver.exceptions import ToolError
 
 from mycase_mcp import credentials
 from mycase_mcp.url_validation import destination_url, document_path
+
+from mycase_mcp.private_file import write_private_file
 
 BASE_URL = "https://external-integrations.mycase.com/v1"
 AUTH_URL = "https://auth.mycase.com/login_sessions/new"
@@ -137,21 +138,7 @@ def _safe_retry_after(resp, default=10):
 
 
 def _atomic_token_write(path, tokens):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, temporary = tempfile.mkstemp(prefix=".tokens-", dir=path.parent)
-    try:
-        os.fchmod(fd, 0o600)
-        with os.fdopen(fd, "w") as stream:
-            json.dump(tokens, stream, indent=2)
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(temporary, path)
-    except BaseException:
-        try:
-            os.unlink(temporary)
-        except OSError:
-            pass
-        raise
+    write_private_file(path, json.dumps(tokens, indent=2))
 
 
 def _vendor_code(resp):

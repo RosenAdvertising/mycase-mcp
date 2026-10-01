@@ -11,10 +11,8 @@ back to a 0600 ``.env`` file when no keyring backend is available or
 import json
 import hmac
 import logging
-import os
 import secrets
 import sys
-import tempfile
 import webbrowser
 from getpass import getpass
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -24,6 +22,8 @@ from urllib.parse import parse_qs, urlencode, urlparse
 import requests
 
 from mycase_mcp import credentials
+
+from mycase_mcp.private_file import write_private_file
 
 REDIRECT_URI = "http://127.0.0.1:8766/callback"
 AUTH_URL = "https://auth.mycase.com/login_sessions/new"
@@ -171,20 +171,7 @@ def main():
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
     token_file = CONFIG_DIR / "tokens.json"
-    fd, temporary = tempfile.mkstemp(prefix=".tokens-", dir=CONFIG_DIR)
-    try:
-        os.fchmod(fd, 0o600)
-        with os.fdopen(fd, "w") as f:
-            json.dump(tokens, f, indent=2)
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(temporary, token_file)
-    except BaseException:
-        try:
-            os.unlink(temporary)
-        except OSError:
-            pass
-        raise
+    write_private_file(token_file, json.dumps(tokens, indent=2))
 
     if backend == "keyring":
         print(

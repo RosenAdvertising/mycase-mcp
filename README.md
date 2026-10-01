@@ -107,9 +107,9 @@ Keyring entries use the service name `mycase-mcp`.
 without Secret Service), or if you set `MYCASE_MCP_USE_KEYRING=0`, credentials
 fall back to a `~/.mycase-mcp/.env` file with `0600` permissions.
 
-On Windows, the OS credential store is used for client credentials; the file
-fallback is not supported for token storage, whose writes require `os.fchmod`
-(including setup and token refresh).
+On Windows, the file is stored in the user's profile and protected by Windows'
+default per-user access rules. On POSIX, files are created with `0600` permissions
+and writes fail closed if private permissions cannot be established.
 
 **Read order.** Credentials resolve in the order OS keyring → process environment
 → `.env` file. So a rotated secret in the keyring always wins, and a
