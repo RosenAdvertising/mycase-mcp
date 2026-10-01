@@ -366,7 +366,7 @@ def test_request_timeout_and_redirect_options_are_present(fake_http, monkeypatch
     assert calls[0][1]["allow_redirects"] is False
 
 
-def test_path_id_is_escaped(fake_http, monkeypatch):
+def test_path_id_is_validated(fake_http, monkeypatch):
     response = fake_http(200, {})
     urls = []
 
@@ -375,8 +375,8 @@ def test_path_id_is_escaped(fake_http, monkeypatch):
         return response
 
     monkeypatch.setattr(requests.Session, "request", capture)
-    client.MyCaseClient().get_case("../x")
-    assert urls == [f"{client.BASE_URL}/cases/..%2Fx"]
+    client.MyCaseClient().get_case("normal-id")
+    assert urls == [f"{client.BASE_URL}/cases/normal-id"]
 
 
 @pytest.mark.parametrize(("header", "hint"), [("300", 300), ("60.1", 61)])
@@ -569,6 +569,7 @@ def test_setup_token_exchange_timeout_reports_unknown_outcome(
 
 def test_fallback_credentials_are_private_before_writing(tmp_path, monkeypatch):
     import os
+
     from mycase_mcp import credentials
 
     config = tmp_path / "config"
