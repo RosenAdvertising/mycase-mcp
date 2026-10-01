@@ -831,7 +831,7 @@ def upload_document(
     assigned_date: str = "",
     staff_id: int = 0,
 ) -> str:
-    """Upload a new document. path is the file storage path/URL."""
+    """Upload a new document. path must be a relative MyCase folder/name including the document name; URLs are not accepted."""
     return json.dumps(
         MyCaseClient().upload_document(
             filename=filename,
