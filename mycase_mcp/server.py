@@ -20,6 +20,7 @@ from pydantic import BeforeValidator, Field, ValidationError
 
 from .client import (
     AccessDeniedError,
+    ArgumentValidationError,
     MissingCredentialsError,
     MyCaseClient,
     PathValidationError,
@@ -28,6 +29,8 @@ from .client import (
     TransportOutcomeUnknownError,
     VendorHTTPError,
 )
+
+from .url_validation import document_path, validate_destinations
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +81,16 @@ class SafeMCPServer(MCPServer):
         tool = None
         try:
             tool = self._tool_manager.get_tool(name)
+            if tool:
+                try:
+                    validate_destinations(arguments)
+                    if name in {
+                        "upload_document",
+                        "upload_case_document",
+                    } and "path" in (arguments or {}):
+                        document_path(arguments["path"])
+                except ValueError as exc:
+                    raise ArgumentValidationError(str(exc)) from None
             return await super().call_tool(name, arguments, context)
         except MCPError:
             logger.error("tool_call_failed reason=unexpected")
@@ -99,6 +112,7 @@ class SafeMCPServer(MCPServer):
                     MissingCredentialsError,
                     ReauthorizationRequiredError,
                     AccessDeniedError,
+                    ArgumentValidationError,
                     VendorHTTPError,
                     RateLimitedError,
                     TransportOutcomeUnknownError,

@@ -16,6 +16,7 @@ import requests
 from mcp.server.mcpserver.exceptions import ToolError
 
 from mycase_mcp import credentials
+from mycase_mcp.url_validation import destination_url, document_path
 
 BASE_URL = "https://external-integrations.mycase.com/v1"
 AUTH_URL = "https://auth.mycase.com/login_sessions/new"
@@ -43,6 +44,10 @@ def _path_id(value, parameter: str) -> str:
 
 class MyCaseToolError(ToolError, RuntimeError):
     """An anticipated failure with a reviewed, client-safe message."""
+
+
+class ArgumentValidationError(MyCaseToolError):
+    """Locally rejected tool arguments with a fixed, safe message."""
 
 
 class PathValidationError(MyCaseToolError):
@@ -395,6 +400,8 @@ class MyCaseClient:
         return self.post("/cases", body)
 
     def update_case(self, case_id, **fields):
+        if not fields:
+            raise ArgumentValidationError("Supply at least one update field.")
         return self.put(f"/cases/{_path_id(case_id, 'case_id')}", fields)
 
     def delete_case(self, case_id):
@@ -465,6 +472,8 @@ class MyCaseClient:
         return self.post("/clients", body)
 
     def update_client(self, client_id, **fields):
+        if not fields:
+            raise ArgumentValidationError("Supply at least one update field.")
         return self.put(f"/clients/{_path_id(client_id, 'client_id')}", fields)
 
     def delete_client(self, client_id):
@@ -496,6 +505,8 @@ class MyCaseClient:
         return self.post("/companies", body)
 
     def update_company(self, company_id, **fields):
+        if not fields:
+            raise ArgumentValidationError("Supply at least one update field.")
         return self.put(f"/companies/{_path_id(company_id, 'company_id')}", fields)
 
     def delete_company(self, company_id):
@@ -531,6 +542,8 @@ class MyCaseClient:
         return self.post("/tasks", body)
 
     def update_task(self, task_id, **fields):
+        if not fields:
+            raise ArgumentValidationError("Supply at least one update field.")
         return self.put(f"/tasks/{_path_id(task_id, 'task_id')}", fields)
 
     def delete_task(self, task_id):
@@ -574,6 +587,8 @@ class MyCaseClient:
         return self.post("/events", body)
 
     def update_event(self, event_id, **fields):
+        if not fields:
+            raise ArgumentValidationError("Supply at least one update field.")
         return self.put(f"/events/{_path_id(event_id, 'event_id')}", fields)
 
     def delete_event(self, event_id):
@@ -665,6 +680,8 @@ class MyCaseClient:
             body["subject"] = subject
         if date:
             body["date"] = date
+        if not body:
+            raise ArgumentValidationError("Supply at least one update field.")
         return self.put(f"/notes/{_path_id(note_id, 'note_id')}", body)
 
     def delete_note(self, note_id):
@@ -713,6 +730,8 @@ class MyCaseClient:
             body["filename"] = name
         if description:
             body["description"] = description
+        if not body:
+            raise ArgumentValidationError("Supply at least one update field.")
         return self.put(f"/documents/{_path_id(doc_id, 'doc_id')}", body)
 
     def delete_document(self, doc_id):
@@ -734,6 +753,10 @@ class MyCaseClient:
     def upload_document(
         self, filename, path, description=None, assigned_date=None, staff_id=None
     ):
+        try:
+            document_path(path)
+        except ValueError as exc:
+            raise ArgumentValidationError(str(exc)) from None
         body = {"filename": filename, "path": path}
         if description:
             body["description"] = description
@@ -746,6 +769,10 @@ class MyCaseClient:
     def upload_case_document(
         self, case_id, filename, path, description=None, assigned_date=None
     ):
+        try:
+            document_path(path)
+        except ValueError as exc:
+            raise ArgumentValidationError(str(exc)) from None
         body = {"filename": filename, "path": path}
         if description:
             body["description"] = description
@@ -801,6 +828,8 @@ class MyCaseClient:
         return self.post("/leads", body)
 
     def update_lead(self, lead_id, **fields):
+        if not fields:
+            raise ArgumentValidationError("Supply at least one update field.")
         return self.put(f"/leads/{_path_id(lead_id, 'lead_id')}", fields)
 
     # ── Message Threads ───────────────────────────────────────────────────────
@@ -900,6 +929,8 @@ class MyCaseClient:
         return self.post("/locations", body)
 
     def update_location(self, location_id, **fields):
+        if not fields:
+            raise ArgumentValidationError("Supply at least one update field.")
         return self.put(f"/locations/{_path_id(location_id, 'location_id')}", fields)
 
     def delete_location(self, location_id):
@@ -1075,6 +1106,8 @@ class MyCaseClient:
             body["call_type"] = call_type
         if resolved is not None:
             body["resolved"] = resolved
+        if not body:
+            raise ArgumentValidationError("Supply at least one update field.")
         return self.put(f"/calls/{_path_id(call_id, 'call_id')}", body)
 
     def delete_call(self, call_id):
@@ -1107,6 +1140,10 @@ class MyCaseClient:
         )
 
     def create_webhook_subscription(self, model, url, actions):
+        try:
+            destination_url(url)
+        except ValueError as exc:
+            raise ArgumentValidationError(str(exc)) from None
         return self.post(
             "/webhooks/subscriptions", {"model": model, "url": url, "actions": actions}
         )

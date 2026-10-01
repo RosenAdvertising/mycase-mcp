@@ -122,6 +122,23 @@ def client_and_arguments(method):
         kwargs["tag_ids"] = [1]
     if method == "update_contact" and MyCaseClient.__name__ == "CloudTalkClient":
         kwargs["name"] = "probe"
+    if method in {
+        "update_case",
+        "update_client",
+        "update_company",
+        "update_task",
+        "update_event",
+        "update_lead",
+        "update_location",
+        "update_document",
+    }:
+        kwargs["name"] = "probe"
+    if method == "update_note":
+        kwargs["subject"] = "probe"
+    if method == "update_call":
+        kwargs["caller_name"] = "probe"
+    if method == "upload_case_document":
+        kwargs["path"] = "example_folder1/example_folder2/example_name"
     return client, kwargs, request, send
 
 

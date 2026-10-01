@@ -4,15 +4,19 @@
 import sys
 from pathlib import Path
 
+from mycase_mcp import credentials
+
 CONFIG_DIR = Path.home() / ".mycase-mcp"
 
 
 def check_config():
-    env_file = CONFIG_DIR / ".env"
     token_file = CONFIG_DIR / "tokens.json"
 
-    if not env_file.exists():
-        print(f"✗ Missing credentials: {env_file}")
+    if not all(
+        credentials.get_secret(key)
+        for key in ("MYCASE_CLIENT_ID", "MYCASE_CLIENT_SECRET")
+    ):
+        print("✗ Missing MyCase client credentials")
         print("  Run: mycase-mcp-setup")
         return False
 
