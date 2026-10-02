@@ -156,7 +156,7 @@ def _result(message: str) -> CallToolResult:
 
 mcp = SafeMCPServer(
     "mycase-mcp",
-    version="0.1.0",
+    version="0.2.0",
     instructions="Full access to MyCase practice management: cases, clients, companies, tasks, calendar, time entries, invoices, notes, documents, leads, messaging, and more.",
 )
 

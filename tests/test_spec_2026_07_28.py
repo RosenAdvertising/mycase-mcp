@@ -127,7 +127,7 @@ def test_modern_discovery_is_sessionless_and_declares_actual_capabilities() -> N
     }
     assert "extensions" not in result["capabilities"]
     assert result["_meta"][SERVER_INFO_META_KEY]["name"] == "mycase-mcp"
-    assert result["_meta"][SERVER_INFO_META_KEY]["version"] == "0.1.0"
+    assert result["_meta"][SERVER_INFO_META_KEY]["version"] == "0.2.0"
 
 
 def test_client_defaults_modern_and_retains_legacy_negotiation() -> None:
