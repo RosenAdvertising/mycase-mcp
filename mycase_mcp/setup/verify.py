@@ -4,15 +4,19 @@
 import sys
 from pathlib import Path
 
+from mycase_mcp import credentials
+
 CONFIG_DIR = Path.home() / ".mycase-mcp"
 
 
 def check_config():
-    env_file = CONFIG_DIR / ".env"
     token_file = CONFIG_DIR / "tokens.json"
 
-    if not env_file.exists():
-        print(f"✗ Missing credentials: {env_file}")
+    if not all(
+        credentials.get_secret(key)
+        for key in ("MYCASE_CLIENT_ID", "MYCASE_CLIENT_SECRET")
+    ):
+        print("✗ Missing MyCase client credentials")
         print("  Run: mycase-mcp-setup")
         return False
 
@@ -31,9 +35,8 @@ def check_api():
         from mycase_mcp.client import MyCaseClient
 
         client = MyCaseClient()
-        me = client.get_me()
-        name = me.get("full_name") or me.get("name") or "unknown"
-        print(f"✓ Authenticated as: {name}")
+        client.get_me()
+        print("✓ Authenticated MyCase user")
 
         cases = client.list_cases(page_size=5)
         if isinstance(cases, list):
@@ -48,7 +51,14 @@ def check_api():
 
         return True
     except Exception as e:
-        print(f"✗ API check failed: {e}")
+        from mycase_mcp.client import MyCaseToolError
+
+        message = (
+            str(e)
+            if isinstance(e, MyCaseToolError)
+            else "Unexpected verification failure. Check configuration and retry."
+        )
+        print(f"✗ API check failed: {message}")
         return False
 
 

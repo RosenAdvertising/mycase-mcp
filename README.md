@@ -21,6 +21,7 @@ MCP server for [MyCase](https://www.mycase.com/) — gives Claude full access to
 ## Requirements
 
 - Python 3.10+
+- Python MCP SDK >=2.2,<3 (MCP protocol revision: 2026-07-28)
 - A MyCase developer app (see setup below)
 - Claude Desktop or any MCP-compatible client
 
@@ -100,12 +101,15 @@ via the cross-platform [`keyring`](https://github.com/jaraco/keyring) library:
 | Windows | Credential Manager                       |
 | Linux   | Secret Service (GNOME Keyring / KWallet) |
 
-Secrets are saved under the service name `mycase-mcp`. Nothing is written to
-disk in clear text.
+Keyring entries use the service name `mycase-mcp`.
 
 **File fallback.** On a host with no keyring backend (e.g. a headless Linux box
 without Secret Service), or if you set `MYCASE_MCP_USE_KEYRING=0`, credentials
 fall back to a `~/.mycase-mcp/.env` file with `0600` permissions.
+
+On Windows, the file is stored in the user's profile and protected by Windows'
+default per-user access rules. On POSIX, files are created with `0600` permissions
+and writes fail closed if private permissions cannot be established.
 
 **Read order.** Credentials resolve in the order OS keyring → process environment
 → `.env` file. So a rotated secret in the keyring always wins, and a
@@ -145,3 +149,39 @@ refreshed automatically on expiry.
 ## License
 
 MIT
+
+## Document paths
+
+`upload_document` and `upload_case_document` take a relative MyCase folder/name,
+including the document name, such as `example_folder1/example_folder2/example_name`.
+This is the example in both the [case document schema](https://mycaseapi.stoplight.io/docs/mycase-api-documentation/rh7lgmsrahr9d-document-request)
+and [firm document schema](https://mycaseapi.stoplight.io/docs/mycase-api-documentation/zlvjohvugwzvt-document-request).
+MyCase creates missing folders and returns a separate upload URL; see the
+[document creation reference](https://mycaseapi.stoplight.io/docs/mycase-api-documentation/5f9d31af2e726-create-a-document-for-a-case).
+For compatibility, the registered tool description is unchanged; this section
+specifies the accepted path contract.
+
+Paths may contain ASCII letters, digits, spaces, `_`, `-`, `.`, parentheses and
+`/` between segments, up to 1024 characters total and 255 per segment. All URLs
+(including HTTPS and hostname/path forms), absolute paths, empty or dot segments,
+leading/trailing segment spaces or dots, backslashes, percent encodings, Unicode
+and control characters are refused before requests. A filename alone, such as
+`report.pdf`, is valid.
+
+## Webhook destination allowlist
+
+Set `MYCASE_ALLOWED_DESTINATION_HOSTS` in the server process environment, for example
+`MYCASE_ALLOWED_DESTINATION_HOSTS=hooks.example.com,.callbacks.example.com`.
+Entries are exact hostnames; a leading dot permits that domain and its subdomains.
+Matching ignores case and a trailing dot and uses IDNA normalization. Empty or
+unset configuration refuses webhook registration before any request. This prevents
+model-supplied URLs from sending firm data to arbitrary destinations, including
+private-address hostname services and unlisted redirectors. Only administrators
+can configure this setting; tools cannot change it. List only trusted hosts whose
+DNS and redirect behavior you control. The existing HTTPS, userinfo, fragment,
+port, local-name, non-global-IP and encoded/Unicode-host checks still apply.
+Explicit destination keys in nested objects receive the same validation; unrelated
+keys are not matched by substring. No DNS lookup or destination fetch is performed.
+
+Updates require at least one supplied field. Verification resolves client credentials
+through the configured secret store, including keyring-only installations.

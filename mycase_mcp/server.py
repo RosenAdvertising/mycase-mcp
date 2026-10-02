@@ -1,14 +1,173 @@
 #!/usr/bin/env python3
-"""MyCase MCP Server — full MyCase API coverage via FastMCP."""
+"""MyCase MCP Server — full MyCase API coverage via the MCP Python SDK."""
 
 import json
-from mcp.server.fastmcp import FastMCP
-from .client import MyCaseClient
+import logging
+from typing import Annotated
 
-mcp = FastMCP(
+import requests
+from mcp.server import MCPServer
+from mcp.server.mcpserver.exceptions import (
+    ResourceError,
+    ResourceNotFoundError,
+    ToolError,
+    UnexpectedResourceError,
+    UnexpectedToolError,
+)
+from mcp.shared.exceptions import MCPError
+from mcp.types import CallToolResult, TextContent
+from pydantic import BeforeValidator, Field, ValidationError
+
+from .client import (
+    AccessDeniedError,
+    ArgumentValidationError,
+    MissingCredentialsError,
+    MyCaseClient,
+    PathValidationError,
+    RateLimitedError,
+    ReauthorizationRequiredError,
+    TransportOutcomeUnknownError,
+    VendorHTTPError,
+)
+
+from .url_validation import document_path, validate_destinations
+
+logger = logging.getLogger(__name__)
+
+
+def _reject_boolean_path_id(value):
+    """Reject booleans before integer coercion; preserve all other SDK inputs."""
+    if isinstance(value, bool):
+        raise ValueError("Use an integer identifier, not a boolean.")
+    return value
+
+
+# A before-validator preserves the existing integer JSON schema and coercions.
+PathId = Annotated[int, BeforeValidator(_reject_boolean_path_id)]
+
+
+def _expected_shape(prop):
+    if "anyOf" in prop:
+        return " or ".join(_expected_shape(option) for option in prop["anyOf"])
+    shape = prop.get("type", "a value matching the documented schema")
+    if "minimum" in prop and "maximum" in prop:
+        shape += f" between {prop['minimum']} and {prop['maximum']}"
+    elif "minimum" in prop:
+        shape += f" >= {prop['minimum']}"
+    elif "maximum" in prop:
+        shape += f" <= {prop['maximum']}"
+    return shape
+
+
+def _validation_message(tool, error):
+    properties = tool.parameters.get("properties", {}) if tool else {}
+    fields = {
+        issue["loc"][0]
+        for issue in error.errors()
+        if issue.get("loc") and issue["loc"][0] in properties
+    }
+    if not fields:
+        return "Invalid arguments: use the tool's documented input names and types."
+    return " ".join(
+        f"Invalid argument '{field}': expected {_expected_shape(properties[field])}."
+        for field in sorted(fields)
+    )
+
+
+class SafeMCPServer(MCPServer):
+    """Expose classified errors without logging exception text or caller input."""
+
+    async def call_tool(self, name, arguments, context=None):
+        tool = None
+        try:
+            tool = self._tool_manager.get_tool(name)
+            if tool:
+                try:
+                    validate_destinations(arguments)
+                    if name in {
+                        "upload_document",
+                        "upload_case_document",
+                    } and "path" in (arguments or {}):
+                        document_path(arguments["path"])
+                except ValueError as exc:
+                    raise ArgumentValidationError(str(exc)) from None
+            return await super().call_tool(name, arguments, context)
+        except MCPError:
+            logger.error("tool_call_failed reason=unexpected")
+            return _result(f"Error executing tool {name if tool else 'unknown'}")
+        except Exception as exc:
+            cause = (
+                exc.__cause__ if isinstance(exc, ToolError) and exc.__cause__ else exc
+            )
+            if (
+                isinstance(exc, ToolError)
+                and not isinstance(exc, UnexpectedToolError)
+                and isinstance(cause, ValidationError)
+            ):
+                message = _validation_message(tool, cause)
+            elif isinstance(
+                cause,
+                (
+                    PathValidationError,
+                    MissingCredentialsError,
+                    ReauthorizationRequiredError,
+                    AccessDeniedError,
+                    ArgumentValidationError,
+                    VendorHTTPError,
+                    RateLimitedError,
+                    TransportOutcomeUnknownError,
+                ),
+            ):
+                message = str(cause)
+            elif isinstance(cause, requests.Timeout):
+                message = "MyCase request timed out. Retry shortly."
+            elif isinstance(cause, requests.ConnectionError):
+                message = "Could not connect to MyCase. Check connectivity and retry."
+            else:
+                logger.error("tool_call_failed reason=unexpected")
+                return _result(f"Error executing tool {name if tool else 'unknown'}")
+            logger.info("tool_call_failed reason=anticipated")
+            return _result(message)
+
+    async def read_resource(self, uri, context=None):
+        try:
+            return await super().read_resource(uri, context)
+        except ResourceNotFoundError:
+            raise ResourceNotFoundError("Resource not found") from None
+        except UnexpectedResourceError:
+            logger.error("resource_read_failed reason=unexpected")
+            raise ResourceError("Error reading resource") from None
+        except ResourceError:
+            logger.error("resource_read_failed reason=resource_error")
+            raise ResourceError("Error reading resource") from None
+        except MCPError:
+            logger.error("resource_read_failed reason=mcp_error")
+            raise ResourceError("Error reading resource") from None
+        except Exception:
+            logger.error("resource_read_failed reason=unexpected")
+            raise ResourceError("Error reading resource") from None
+
+
+def _result(message: str) -> CallToolResult:
+    return CallToolResult(
+        content=[TextContent(type="text", text=message)], is_error=True
+    )
+
+
+mcp = SafeMCPServer(
     "mycase-mcp",
+    version="0.1.0",
     instructions="Full access to MyCase practice management: cases, clients, companies, tasks, calendar, time entries, invoices, notes, documents, leads, messaging, and more.",
 )
+
+ListLimit = Annotated[
+    int,
+    Field(
+        ge=1,
+        le=200,
+        description="Maximum number of records returned.",
+    ),
+]
 
 
 # ── Identity ──────────────────────────────────────────────────────────────────
@@ -27,13 +186,13 @@ def get_firm() -> str:
 
 
 @mcp.tool()
-def list_staff(page_size: int = 50) -> str:
+def list_staff(limit: ListLimit = 50) -> str:
     """List all staff members in this firm."""
-    return json.dumps(MyCaseClient().list_staff(page_size=page_size), indent=2)
+    return json.dumps(MyCaseClient().list_staff(page_size=limit), indent=2)
 
 
 @mcp.tool()
-def get_staff_member(staff_id: int) -> str:
+def get_staff_member(staff_id: PathId) -> str:
     """Get a staff member by ID."""
     return json.dumps(MyCaseClient().get_staff(staff_id), indent=2)
 
@@ -42,15 +201,15 @@ def get_staff_member(staff_id: int) -> str:
 
 
 @mcp.tool()
-def list_cases(status: str = "", page_size: int = 25) -> str:
+def list_cases(status: str = "", limit: ListLimit = 25) -> str:
     """List cases. status: open | closed."""
     return json.dumps(
-        MyCaseClient().list_cases(status=status or None, page_size=page_size), indent=2
+        MyCaseClient().list_cases(status=status or None, page_size=limit), indent=2
     )
 
 
 @mcp.tool()
-def get_case(case_id: int) -> str:
+def get_case(case_id: PathId) -> str:
     """Get a case by ID."""
     return json.dumps(MyCaseClient().get_case(case_id), indent=2)
 
@@ -78,7 +237,7 @@ def create_case(
 
 @mcp.tool()
 def update_case(
-    case_id: int,
+    case_id: PathId,
     name: str = "",
     status: str = "",
     description: str = "",
@@ -98,21 +257,21 @@ def update_case(
 
 
 @mcp.tool()
-def delete_case(case_id: int) -> str:
+def delete_case(case_id: PathId) -> str:
     """Delete a case by ID."""
     return json.dumps(MyCaseClient().delete_case(case_id), indent=2)
 
 
 @mcp.tool()
-def list_cases_for_client(client_id: int, page_size: int = 25) -> str:
+def list_cases_for_client(client_id: PathId, limit: ListLimit = 25) -> str:
     """List all cases associated with a client."""
     return json.dumps(
-        MyCaseClient().list_cases_for_client(client_id, page_size=page_size), indent=2
+        MyCaseClient().list_cases_for_client(client_id, page_size=limit), indent=2
     )
 
 
 @mcp.tool()
-def add_client_to_case(case_id: int, client_id: int, role: str = "") -> str:
+def add_client_to_case(case_id: PathId, client_id: int, role: str = "") -> str:
     """Add a client to a case with an optional role."""
     return json.dumps(
         MyCaseClient().add_client_to_case(case_id, client_id, role=role or None),
@@ -121,7 +280,7 @@ def add_client_to_case(case_id: int, client_id: int, role: str = "") -> str:
 
 
 @mcp.tool()
-def add_company_to_case(case_id: int, company_id: int, role: str = "") -> str:
+def add_company_to_case(case_id: PathId, company_id: int, role: str = "") -> str:
     """Add a company to a case with an optional role."""
     return json.dumps(
         MyCaseClient().add_company_to_case(case_id, company_id, role=role or None),
@@ -130,7 +289,7 @@ def add_company_to_case(case_id: int, company_id: int, role: str = "") -> str:
 
 
 @mcp.tool()
-def add_staff_to_case(case_id: int, staff_id: int) -> str:
+def add_staff_to_case(case_id: PathId, staff_id: int) -> str:
     """Associate a staff member with a case."""
     return json.dumps(MyCaseClient().add_staff_to_case(case_id, staff_id), indent=2)
 
@@ -145,7 +304,7 @@ def list_clients(
     last_name: str = "",
     cell_phone_number: str = "",
     updated_after: str = "",
-    page_size: int = 25,
+    limit: ListLimit = 25,
 ) -> str:
     """List clients. Filter by email, first_name, last_name, cell_phone_number, or updated_after (ISO 8601)."""
     return json.dumps(
@@ -155,14 +314,14 @@ def list_clients(
             last_name=last_name or None,
             cell_phone_number=cell_phone_number or None,
             updated_after=updated_after or None,
-            page_size=page_size,
+            page_size=limit,
         ),
         indent=2,
     )
 
 
 @mcp.tool()
-def get_client(client_id: int) -> str:
+def get_client(client_id: PathId) -> str:
     """Get a client by ID."""
     return json.dumps(MyCaseClient().get_client(client_id), indent=2)
 
@@ -185,7 +344,7 @@ def create_client(
 
 @mcp.tool()
 def update_client(
-    client_id: int,
+    client_id: PathId,
     first_name: str = "",
     last_name: str = "",
     email: str = "",
@@ -205,24 +364,24 @@ def update_client(
 
 
 @mcp.tool()
-def delete_client(client_id: int) -> str:
+def delete_client(client_id: PathId) -> str:
     """Delete a client by ID."""
     return json.dumps(MyCaseClient().delete_client(client_id), indent=2)
 
 
 @mcp.tool()
-def list_client_notes(client_id: int, page_size: int = 25) -> str:
+def list_client_notes(client_id: PathId, limit: ListLimit = 25) -> str:
     """List all notes for a client."""
     return json.dumps(
-        MyCaseClient().list_client_notes(client_id, page_size=page_size), indent=2
+        MyCaseClient().list_client_notes(client_id, page_size=limit), indent=2
     )
 
 
 @mcp.tool()
-def list_client_message_threads(client_id: int, page_size: int = 25) -> str:
+def list_client_message_threads(client_id: PathId, limit: ListLimit = 25) -> str:
     """List all message threads for a client."""
     return json.dumps(
-        MyCaseClient().list_client_message_threads(client_id, page_size=page_size),
+        MyCaseClient().list_client_message_threads(client_id, page_size=limit),
         indent=2,
     )
 
@@ -232,7 +391,7 @@ def list_client_message_threads(client_id: int, page_size: int = 25) -> str:
 
 @mcp.tool()
 def list_companies(
-    name: str = "", email: str = "", updated_after: str = "", page_size: int = 25
+    name: str = "", email: str = "", updated_after: str = "", limit: ListLimit = 25
 ) -> str:
     """List companies. Filter by name, email, or updated_after (ISO 8601)."""
     return json.dumps(
@@ -240,14 +399,14 @@ def list_companies(
             name=name or None,
             email=email or None,
             updated_after=updated_after or None,
-            page_size=page_size,
+            page_size=limit,
         ),
         indent=2,
     )
 
 
 @mcp.tool()
-def get_company(company_id: int) -> str:
+def get_company(company_id: PathId) -> str:
     """Get a company by ID."""
     return json.dumps(MyCaseClient().get_company(company_id), indent=2)
 
@@ -270,7 +429,7 @@ def create_company(
 
 @mcp.tool()
 def update_company(
-    company_id: int,
+    company_id: PathId,
     name: str = "",
     email: str = "",
     main_phone_number: str = "",
@@ -290,13 +449,13 @@ def update_company(
 
 
 @mcp.tool()
-def delete_company(company_id: int) -> str:
+def delete_company(company_id: PathId) -> str:
     """Delete a company by ID."""
     return json.dumps(MyCaseClient().delete_company(company_id), indent=2)
 
 
 @mcp.tool()
-def add_client_to_company(company_id: int, client_id: int) -> str:
+def add_client_to_company(company_id: PathId, client_id: int) -> str:
     """Associate a client with a company."""
     return json.dumps(
         MyCaseClient().add_client_to_company(company_id, client_id), indent=2
@@ -307,12 +466,10 @@ def add_client_to_company(company_id: int, client_id: int) -> str:
 
 
 @mcp.tool()
-def list_tasks(updated_after: str = "", page_size: int = 25) -> str:
+def list_tasks(updated_after: str = "", limit: ListLimit = 25) -> str:
     """List tasks. updated_after: ISO 8601 datetime to filter recently changed tasks."""
     return json.dumps(
-        MyCaseClient().list_tasks(
-            updated_after=updated_after or None, page_size=page_size
-        ),
+        MyCaseClient().list_tasks(updated_after=updated_after or None, page_size=limit),
         indent=2,
     )
 
@@ -342,7 +499,7 @@ def create_task(
 
 @mcp.tool()
 def update_task(
-    task_id: int,
+    task_id: PathId,
     name: str = "",
     due_date: str = "",
     completed: str = "",
@@ -362,13 +519,13 @@ def update_task(
 
 
 @mcp.tool()
-def delete_task(task_id: int) -> str:
+def delete_task(task_id: PathId) -> str:
     """Delete a task by ID."""
     return json.dumps(MyCaseClient().delete_task(task_id), indent=2)
 
 
 @mcp.tool()
-def assign_task_to_staff(task_id: int, staff_id: int) -> str:
+def assign_task_to_staff(task_id: PathId, staff_id: int) -> str:
     """Assign a task to a staff member."""
     return json.dumps(MyCaseClient().assign_task_to_staff(task_id, staff_id), indent=2)
 
@@ -378,7 +535,10 @@ def assign_task_to_staff(task_id: int, staff_id: int) -> str:
 
 @mcp.tool()
 def list_events(
-    case_id: int = 0, start_date: str = "", end_date: str = "", page_size: int = 25
+    case_id: int = 0,
+    start_date: str = "",
+    end_date: str = "",
+    limit: ListLimit = 25,
 ) -> str:
     """List calendar events. start_date/end_date: YYYY-MM-DD."""
     return json.dumps(
@@ -386,7 +546,7 @@ def list_events(
             case_id=case_id or None,
             start_date=start_date or None,
             end_date=end_date or None,
-            page_size=page_size,
+            page_size=limit,
         ),
         indent=2,
     )
@@ -419,7 +579,7 @@ def create_event(
 
 @mcp.tool()
 def update_event(
-    event_id: int, name: str = "", start: str = "", end: str = "", location: str = ""
+    event_id: PathId, name: str = "", start: str = "", end: str = "", location: str = ""
 ) -> str:
     """Update a calendar event."""
     fields = {}
@@ -435,13 +595,13 @@ def update_event(
 
 
 @mcp.tool()
-def delete_event(event_id: int) -> str:
+def delete_event(event_id: PathId) -> str:
     """Delete a calendar event by ID."""
     return json.dumps(MyCaseClient().delete_event(event_id), indent=2)
 
 
 @mcp.tool()
-def add_staff_to_event(event_id: int, staff_id: int) -> str:
+def add_staff_to_event(event_id: PathId, staff_id: int) -> str:
     """Add a staff member to a calendar event."""
     return json.dumps(MyCaseClient().add_staff_to_event(event_id, staff_id), indent=2)
 
@@ -450,18 +610,18 @@ def add_staff_to_event(event_id: int, staff_id: int) -> str:
 
 
 @mcp.tool()
-def list_time_entries(updated_after: str = "", page_size: int = 25) -> str:
+def list_time_entries(updated_after: str = "", limit: ListLimit = 25) -> str:
     """List time entries. updated_after: ISO 8601 datetime to filter by last update."""
     return json.dumps(
         MyCaseClient().list_time_entries(
-            updated_after=updated_after or None, page_size=page_size
+            updated_after=updated_after or None, page_size=limit
         ),
         indent=2,
     )
 
 
 @mcp.tool()
-def get_time_entry(entry_id: int) -> str:
+def get_time_entry(entry_id: PathId) -> str:
     """Get a specific time entry by ID."""
     return json.dumps(MyCaseClient().get_time_entry(entry_id), indent=2)
 
@@ -494,7 +654,7 @@ def create_time_entry(
 
 
 @mcp.tool()
-def delete_time_entry(entry_id: int) -> str:
+def delete_time_entry(entry_id: PathId) -> str:
     """Delete a time entry by ID."""
     return json.dumps(MyCaseClient().delete_time_entry(entry_id), indent=2)
 
@@ -503,11 +663,11 @@ def delete_time_entry(entry_id: int) -> str:
 
 
 @mcp.tool()
-def list_invoices(case_id: int = 0, status: str = "", page_size: int = 25) -> str:
+def list_invoices(case_id: int = 0, status: str = "", limit: ListLimit = 25) -> str:
     """List invoices. status: draft | sent | paid | overdue."""
     return json.dumps(
         MyCaseClient().list_invoices(
-            case_id=case_id or None, status=status or None, page_size=page_size
+            case_id=case_id or None, status=status or None, page_size=limit
         ),
         indent=2,
     )
@@ -515,7 +675,7 @@ def list_invoices(case_id: int = 0, status: str = "", page_size: int = 25) -> st
 
 @mcp.tool()
 def record_invoice_payment(
-    invoice_id: int, amount: float, date: str, notes: str = ""
+    invoice_id: PathId, amount: float, date: str, notes: str = ""
 ) -> str:
     """Record a payment against an invoice. date: YYYY-MM-DD (required)."""
     return json.dumps(
@@ -528,12 +688,12 @@ def record_invoice_payment(
 
 @mcp.tool()
 def list_invoice_payments(
-    page_size: int = 25, status: str = "", payable_id: str = ""
+    limit: ListLimit = 25, status: str = "", payable_id: str = ""
 ) -> str:
     """List invoice payments. status: pending|success|failure|error|timeout. payable_id: filter by invoice ID."""
     return json.dumps(
         MyCaseClient().list_invoice_payments(
-            page_size=page_size, status=status or None, payable_id=payable_id or None
+            page_size=limit, status=status or None, payable_id=payable_id or None
         ),
         indent=2,
     )
@@ -543,13 +703,15 @@ def list_invoice_payments(
 
 
 @mcp.tool()
-def get_note(note_id: int) -> str:
+def get_note(note_id: PathId) -> str:
     """Get a note by ID."""
     return json.dumps(MyCaseClient().get_note(note_id), indent=2)
 
 
 @mcp.tool()
-def update_note(note_id: int, note: str = "", subject: str = "", date: str = "") -> str:
+def update_note(
+    note_id: PathId, note: str = "", subject: str = "", date: str = ""
+) -> str:
     """Update a note's body text, subject, or date. date: ISO 8601."""
     return json.dumps(
         MyCaseClient().update_note(
@@ -560,21 +722,21 @@ def update_note(note_id: int, note: str = "", subject: str = "", date: str = "")
 
 
 @mcp.tool()
-def delete_note(note_id: int) -> str:
+def delete_note(note_id: PathId) -> str:
     """Delete a note by ID."""
     return json.dumps(MyCaseClient().delete_note(note_id), indent=2)
 
 
 @mcp.tool()
-def list_case_notes(case_id: int, page_size: int = 25) -> str:
+def list_case_notes(case_id: PathId, limit: ListLimit = 25) -> str:
     """List all notes for a case."""
     return json.dumps(
-        MyCaseClient().list_case_notes(case_id, page_size=page_size), indent=2
+        MyCaseClient().list_case_notes(case_id, page_size=limit), indent=2
     )
 
 
 @mcp.tool()
-def create_case_note(case_id: int, note: str, subject: str, date: str) -> str:
+def create_case_note(case_id: PathId, note: str, subject: str, date: str) -> str:
     """Create a note on a case. All three fields (note body, subject, date ISO 8601) are required."""
     return json.dumps(
         MyCaseClient().create_case_note(case_id, note=note, subject=subject, date=date),
@@ -583,7 +745,7 @@ def create_case_note(case_id: int, note: str, subject: str, date: str) -> str:
 
 
 @mcp.tool()
-def create_client_note(client_id: int, note: str, subject: str, date: str) -> str:
+def create_client_note(client_id: PathId, note: str, subject: str, date: str) -> str:
     """Create a note on a client. All three fields (note body, subject, date ISO 8601) are required."""
     return json.dumps(
         MyCaseClient().create_client_note(
@@ -594,7 +756,7 @@ def create_client_note(client_id: int, note: str, subject: str, date: str) -> st
 
 
 @mcp.tool()
-def create_company_note(company_id: int, note: str, subject: str, date: str) -> str:
+def create_company_note(company_id: PathId, note: str, subject: str, date: str) -> str:
     """Create a note on a company. All three fields (note body, subject, date ISO 8601) are required."""
     return json.dumps(
         MyCaseClient().create_company_note(
@@ -608,22 +770,22 @@ def create_company_note(company_id: int, note: str, subject: str, date: str) -> 
 
 
 @mcp.tool()
-def list_documents(case_id: int = 0, page_size: int = 25) -> str:
+def list_documents(case_id: int = 0, limit: ListLimit = 25) -> str:
     """List documents, optionally filtered by case."""
     return json.dumps(
-        MyCaseClient().list_documents(case_id=case_id or None, page_size=page_size),
+        MyCaseClient().list_documents(case_id=case_id or None, page_size=limit),
         indent=2,
     )
 
 
 @mcp.tool()
-def get_document(doc_id: int) -> str:
+def get_document(doc_id: PathId) -> str:
     """Get document metadata by ID."""
     return json.dumps(MyCaseClient().get_document(doc_id), indent=2)
 
 
 @mcp.tool()
-def update_document(doc_id: int, name: str = "", description: str = "") -> str:
+def update_document(doc_id: PathId, name: str = "", description: str = "") -> str:
     """Update a document's filename or description."""
     return json.dumps(
         MyCaseClient().update_document(
@@ -634,27 +796,29 @@ def update_document(doc_id: int, name: str = "", description: str = "") -> str:
 
 
 @mcp.tool()
-def delete_document(doc_id: int) -> str:
+def delete_document(doc_id: PathId) -> str:
     """Delete a document by ID."""
     return json.dumps(MyCaseClient().delete_document(doc_id), indent=2)
 
 
 @mcp.tool()
-def list_case_documents(case_id: int, page_size: int = 25) -> str:
+def list_case_documents(case_id: PathId, limit: ListLimit = 25) -> str:
     """List all documents for a case."""
     return json.dumps(
-        MyCaseClient().list_case_documents(case_id, page_size=page_size), indent=2
+        MyCaseClient().list_case_documents(case_id, page_size=limit), indent=2
     )
 
 
 @mcp.tool()
-def list_document_versions(doc_id: int) -> str:
+def list_document_versions(doc_id: PathId, limit: ListLimit = 25) -> str:
     """List all versions of a document."""
-    return json.dumps(MyCaseClient().list_document_versions(doc_id), indent=2)
+    return json.dumps(
+        MyCaseClient().list_document_versions(doc_id, page_size=limit), indent=2
+    )
 
 
 @mcp.tool()
-def get_case_folder(case_id: int) -> str:
+def get_case_folder(case_id: PathId) -> str:
     """Get the root document folder for a case."""
     return json.dumps(MyCaseClient().get_case_folder(case_id), indent=2)
 
@@ -667,7 +831,7 @@ def upload_document(
     assigned_date: str = "",
     staff_id: int = 0,
 ) -> str:
-    """Upload a new document. path is the file storage path/URL."""
+    """Upload a new document. path must be a relative MyCase folder/name including the document name; URLs are not accepted."""
     return json.dumps(
         MyCaseClient().upload_document(
             filename=filename,
@@ -682,7 +846,7 @@ def upload_document(
 
 @mcp.tool()
 def upload_case_document(
-    case_id: int,
+    case_id: PathId,
     filename: str,
     path: str,
     description: str = "",
@@ -702,25 +866,27 @@ def upload_case_document(
 
 
 @mcp.tool()
-def list_all_document_versions() -> str:
+def list_all_document_versions(limit: ListLimit = 25) -> str:
     """List all document versions across the firm."""
-    return json.dumps(MyCaseClient().list_all_document_versions(), indent=2)
+    return json.dumps(
+        MyCaseClient().list_all_document_versions(page_size=limit), indent=2
+    )
 
 
 @mcp.tool()
-def upload_document_version(doc_id: int) -> str:
+def upload_document_version(doc_id: PathId) -> str:
     """Initiate a new version upload for an existing document. Returns upload instructions."""
     return json.dumps(MyCaseClient().upload_document_version(doc_id), indent=2)
 
 
 @mcp.tool()
-def get_document_data(doc_id: int) -> str:
+def get_document_data(doc_id: PathId) -> str:
     """Get the download URL or data for a document's latest version."""
     return json.dumps(MyCaseClient().get_document_data(doc_id), indent=2)
 
 
 @mcp.tool()
-def get_document_version_data(doc_id: int, version_number: int) -> str:
+def get_document_version_data(doc_id: PathId, version_number: PathId) -> str:
     """Get the download URL or data for a specific document version."""
     return json.dumps(
         MyCaseClient().get_document_version_data(doc_id, version_number), indent=2
@@ -728,7 +894,7 @@ def get_document_version_data(doc_id: int, version_number: int) -> str:
 
 
 @mcp.tool()
-def delete_document_version(doc_id: int, version_number: int) -> str:
+def delete_document_version(doc_id: PathId, version_number: PathId) -> str:
     """Delete a specific version of a document."""
     return json.dumps(
         MyCaseClient().delete_document_version(doc_id, version_number), indent=2
@@ -739,15 +905,15 @@ def delete_document_version(doc_id: int, version_number: int) -> str:
 
 
 @mcp.tool()
-def list_leads(status: str = "", page_size: int = 25) -> str:
+def list_leads(status: str = "", limit: ListLimit = 25) -> str:
     """List leads. status: new | contacted | qualified | converted | closed."""
     return json.dumps(
-        MyCaseClient().list_leads(status=status or None, page_size=page_size), indent=2
+        MyCaseClient().list_leads(status=status or None, page_size=limit), indent=2
     )
 
 
 @mcp.tool()
-def get_lead(lead_id: int) -> str:
+def get_lead(lead_id: PathId) -> str:
     """Get a lead by ID."""
     return json.dumps(MyCaseClient().get_lead(lead_id), indent=2)
 
@@ -775,7 +941,7 @@ def create_lead(
 
 @mcp.tool()
 def update_lead(
-    lead_id: int,
+    lead_id: PathId,
     status: str = "",
     first_name: str = "",
     last_name: str = "",
@@ -830,7 +996,7 @@ def create_message_thread(
 
 @mcp.tool()
 def create_case_message_thread(
-    case_id: int,
+    case_id: PathId,
     subject: str,
     first_message_body: str,
     sender_id: int = 0,
@@ -862,7 +1028,7 @@ def create_case_message_thread(
 
 
 @mcp.tool()
-def post_message(thread_id: int, body: str, sender_id: int = 0) -> str:
+def post_message(thread_id: PathId, body: str, sender_id: int = 0) -> str:
     """Post a message to an existing message thread."""
     return json.dumps(
         MyCaseClient().post_message(
@@ -876,9 +1042,9 @@ def post_message(thread_id: int, body: str, sender_id: int = 0) -> str:
 
 
 @mcp.tool()
-def list_case_stages() -> str:
+def list_case_stages(limit: ListLimit = 50) -> str:
     """List all case stages configured in this firm."""
-    return json.dumps(MyCaseClient().list_case_stages(), indent=2)
+    return json.dumps(MyCaseClient().list_case_stages(page_size=limit), indent=2)
 
 
 @mcp.tool()
@@ -888,27 +1054,27 @@ def create_case_stage(name: str) -> str:
 
 
 @mcp.tool()
-def update_case_stage(stage_id: int, name: str) -> str:
+def update_case_stage(stage_id: PathId, name: str) -> str:
     """Rename a case stage."""
     return json.dumps(MyCaseClient().update_case_stage(stage_id, name), indent=2)
 
 
 @mcp.tool()
-def delete_case_stage(stage_id: int) -> str:
+def delete_case_stage(stage_id: PathId) -> str:
     """Delete a case stage by ID."""
     return json.dumps(MyCaseClient().delete_case_stage(stage_id), indent=2)
 
 
 @mcp.tool()
-def list_case_roles() -> str:
+def list_case_roles(limit: ListLimit = 50) -> str:
     """List all case roles (e.g. plaintiff, defendant, attorney)."""
-    return json.dumps(MyCaseClient().list_case_roles(), indent=2)
+    return json.dumps(MyCaseClient().list_case_roles(page_size=limit), indent=2)
 
 
 @mcp.tool()
-def list_referral_sources() -> str:
+def list_referral_sources(limit: ListLimit = 50) -> str:
     """List all referral sources configured in this firm."""
-    return json.dumps(MyCaseClient().list_referral_sources(), indent=2)
+    return json.dumps(MyCaseClient().list_referral_sources(page_size=limit), indent=2)
 
 
 @mcp.tool()
@@ -918,9 +1084,9 @@ def create_referral_source(name: str) -> str:
 
 
 @mcp.tool()
-def list_locations() -> str:
+def list_locations(limit: ListLimit = 50) -> str:
     """List all locations (courthouses, offices, etc.) in this firm."""
-    return json.dumps(MyCaseClient().list_locations(), indent=2)
+    return json.dumps(MyCaseClient().list_locations(page_size=limit), indent=2)
 
 
 @mcp.tool()
@@ -947,7 +1113,7 @@ def create_location(
 
 
 @mcp.tool()
-def update_location(location_id: int, name: str = "") -> str:
+def update_location(location_id: PathId, name: str = "") -> str:
     """Update a location's name."""
     fields = {}
     if name:
@@ -956,15 +1122,15 @@ def update_location(location_id: int, name: str = "") -> str:
 
 
 @mcp.tool()
-def delete_location(location_id: int) -> str:
+def delete_location(location_id: PathId) -> str:
     """Delete a location by ID."""
     return json.dumps(MyCaseClient().delete_location(location_id), indent=2)
 
 
 @mcp.tool()
-def list_people_groups() -> str:
+def list_people_groups(limit: ListLimit = 50) -> str:
     """List all people groups (contact categories) in this firm."""
-    return json.dumps(MyCaseClient().list_people_groups(), indent=2)
+    return json.dumps(MyCaseClient().list_people_groups(page_size=limit), indent=2)
 
 
 @mcp.tool()
@@ -974,21 +1140,21 @@ def create_people_group(name: str) -> str:
 
 
 @mcp.tool()
-def update_people_group(group_id: int, name: str) -> str:
+def update_people_group(group_id: PathId, name: str) -> str:
     """Rename a people group."""
     return json.dumps(MyCaseClient().update_people_group(group_id, name), indent=2)
 
 
 @mcp.tool()
-def delete_people_group(group_id: int) -> str:
+def delete_people_group(group_id: PathId) -> str:
     """Delete a people group by ID."""
     return json.dumps(MyCaseClient().delete_people_group(group_id), indent=2)
 
 
 @mcp.tool()
-def list_practice_areas() -> str:
+def list_practice_areas(limit: ListLimit = 50) -> str:
     """List all practice areas defined in this firm."""
-    return json.dumps(MyCaseClient().list_practice_areas(), indent=2)
+    return json.dumps(MyCaseClient().list_practice_areas(page_size=limit), indent=2)
 
 
 @mcp.tool()
@@ -998,21 +1164,21 @@ def create_practice_area(name: str) -> str:
 
 
 @mcp.tool()
-def update_practice_area(area_id: int, name: str) -> str:
+def update_practice_area(area_id: PathId, name: str) -> str:
     """Rename a practice area."""
     return json.dumps(MyCaseClient().update_practice_area(area_id, name), indent=2)
 
 
 @mcp.tool()
-def delete_practice_area(area_id: int) -> str:
+def delete_practice_area(area_id: PathId) -> str:
     """Delete a practice area by ID."""
     return json.dumps(MyCaseClient().delete_practice_area(area_id), indent=2)
 
 
 @mcp.tool()
-def list_custom_fields() -> str:
+def list_custom_fields(limit: ListLimit = 50) -> str:
     """List all custom fields configured in this firm."""
-    return json.dumps(MyCaseClient().list_custom_fields(), indent=2)
+    return json.dumps(MyCaseClient().list_custom_fields(page_size=limit), indent=2)
 
 
 @mcp.tool()
@@ -1032,25 +1198,27 @@ def create_custom_field(
 
 
 @mcp.tool()
-def get_custom_field(field_id: int) -> str:
+def get_custom_field(field_id: PathId) -> str:
     """Get a custom field by ID."""
     return json.dumps(MyCaseClient().get_custom_field(field_id), indent=2)
 
 
 @mcp.tool()
-def delete_custom_field(field_id: int) -> str:
+def delete_custom_field(field_id: PathId) -> str:
     """Delete a custom field by ID."""
     return json.dumps(MyCaseClient().delete_custom_field(field_id), indent=2)
 
 
 @mcp.tool()
-def list_custom_field_options(field_id: int) -> str:
+def list_custom_field_options(field_id: PathId, limit: ListLimit = 25) -> str:
     """List all options for a list-type custom field."""
-    return json.dumps(MyCaseClient().list_custom_field_options(field_id), indent=2)
+    return json.dumps(
+        MyCaseClient().list_custom_field_options(field_id, page_size=limit), indent=2
+    )
 
 
 @mcp.tool()
-def create_custom_field_option(field_id: int, option_value: str) -> str:
+def create_custom_field_option(field_id: PathId, option_value: str) -> str:
     """Add an option to a list-type custom field."""
     return json.dumps(
         MyCaseClient().create_custom_field_option(field_id, option_value), indent=2
@@ -1058,7 +1226,7 @@ def create_custom_field_option(field_id: int, option_value: str) -> str:
 
 
 @mcp.tool()
-def update_custom_field_option(field_id: int, key: str, option_value: str) -> str:
+def update_custom_field_option(field_id: PathId, key: str, option_value: str) -> str:
     """Update an existing option on a list-type custom field."""
     return json.dumps(
         MyCaseClient().update_custom_field_option(field_id, key, option_value), indent=2
@@ -1066,7 +1234,7 @@ def update_custom_field_option(field_id: int, key: str, option_value: str) -> st
 
 
 @mcp.tool()
-def delete_custom_field_option(field_id: int, key: str) -> str:
+def delete_custom_field_option(field_id: PathId, key: str) -> str:
     """Delete an option from a list-type custom field."""
     return json.dumps(
         MyCaseClient().delete_custom_field_option(field_id, key), indent=2
@@ -1077,18 +1245,18 @@ def delete_custom_field_option(field_id: int, key: str) -> str:
 
 
 @mcp.tool()
-def list_expenses(updated_after: str = "", page_size: int = 25) -> str:
+def list_expenses(updated_after: str = "", limit: ListLimit = 25) -> str:
     """List expense entries. updated_after: ISO 8601 datetime to filter by last update."""
     return json.dumps(
         MyCaseClient().list_expenses(
-            updated_after=updated_after or None, page_size=page_size
+            updated_after=updated_after or None, page_size=limit
         ),
         indent=2,
     )
 
 
 @mcp.tool()
-def get_expense(expense_id: int) -> str:
+def get_expense(expense_id: PathId) -> str:
     """Get a specific expense entry by ID."""
     return json.dumps(MyCaseClient().get_expense(expense_id), indent=2)
 
@@ -1121,7 +1289,7 @@ def create_expense(
 
 
 @mcp.tool()
-def delete_expense(expense_id: int) -> str:
+def delete_expense(expense_id: PathId) -> str:
     """Delete an expense entry by ID."""
     return json.dumps(MyCaseClient().delete_expense(expense_id), indent=2)
 
@@ -1130,12 +1298,10 @@ def delete_expense(expense_id: int) -> str:
 
 
 @mcp.tool()
-def list_calls(page_size: int = 25, updated_after: str = "") -> str:
+def list_calls(limit: ListLimit = 25, updated_after: str = "") -> str:
     """List calls in the firm's call log. updated_after: ISO 8601."""
     return json.dumps(
-        MyCaseClient().list_calls(
-            page_size=page_size, updated_after=updated_after or None
-        ),
+        MyCaseClient().list_calls(page_size=limit, updated_after=updated_after or None),
         indent=2,
     )
 
@@ -1171,7 +1337,7 @@ def create_call(
 
 @mcp.tool()
 def update_call(
-    call_id: int,
+    call_id: PathId,
     caller_name: str = "",
     caller_phone_number: str = "",
     call_for: str = "",
@@ -1198,7 +1364,7 @@ def update_call(
 
 
 @mcp.tool()
-def delete_call(call_id: int) -> str:
+def delete_call(call_id: PathId) -> str:
     """Delete a call log entry by ID."""
     return json.dumps(MyCaseClient().delete_call(call_id), indent=2)
 
@@ -1207,21 +1373,23 @@ def delete_call(call_id: int) -> str:
 
 
 @mcp.tool()
-def list_folder_documents(folder_id: int, page_size: int = 25) -> str:
+def list_folder_documents(folder_id: PathId, limit: ListLimit = 25) -> str:
     """List documents inside a specific folder."""
     return json.dumps(
-        MyCaseClient().list_folder_documents(folder_id, page_size=page_size), indent=2
+        MyCaseClient().list_folder_documents(folder_id, page_size=limit), indent=2
     )
 
 
 @mcp.tool()
-def list_folder_subfolders(folder_id: int) -> str:
+def list_folder_subfolders(folder_id: PathId, limit: ListLimit = 25) -> str:
     """List subfolders inside a specific folder."""
-    return json.dumps(MyCaseClient().list_folder_subfolders(folder_id), indent=2)
+    return json.dumps(
+        MyCaseClient().list_folder_subfolders(folder_id, page_size=limit), indent=2
+    )
 
 
 @mcp.tool()
-def create_case_subfolder(case_id: int, path: str) -> str:
+def create_case_subfolder(case_id: PathId, path: str) -> str:
     """Create a subfolder within a case. path: relative path, e.g. 'Contracts/2026'."""
     return json.dumps(MyCaseClient().create_case_subfolder(case_id, path), indent=2)
 
@@ -1230,9 +1398,11 @@ def create_case_subfolder(case_id: int, path: str) -> str:
 
 
 @mcp.tool()
-def list_webhook_subscriptions() -> str:
+def list_webhook_subscriptions(limit: ListLimit = 25) -> str:
     """List all active webhook subscriptions for this firm."""
-    return json.dumps(MyCaseClient().list_webhook_subscriptions(), indent=2)
+    return json.dumps(
+        MyCaseClient().list_webhook_subscriptions(page_size=limit), indent=2
+    )
 
 
 @mcp.tool()
@@ -1245,7 +1415,7 @@ def create_webhook_subscription(model: str, url: str, actions: str) -> str:
 
 
 @mcp.tool()
-def delete_webhook_subscription(subscription_id: int) -> str:
+def delete_webhook_subscription(subscription_id: PathId) -> str:
     """Delete a webhook subscription by ID."""
     return json.dumps(
         MyCaseClient().delete_webhook_subscription(subscription_id), indent=2
