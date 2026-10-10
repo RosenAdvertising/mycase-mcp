@@ -1448,9 +1448,29 @@ def security_notes_resource() -> str:
     """Security posture for mycase-mcp.
 
     ## Credentials
-    - **MYCASE_API_TOKEN**: MyCase API bearer token.
-    - Resolution order: process env → `~/.mycase-mcp/.env` (chmod 0600 fallback).
-      Set via `mycase-mcp-setup`.
+    - **MYCASE_CLIENT_ID** and **MYCASE_CLIENT_SECRET**: MyCase OAuth client credentials.
+      They come from the server's own configuration, never from the client or a request.
+    - Read order: process environment, then the OS keyring (macOS Keychain, Windows
+      Credential Manager, Linux Secret Service), then `~/.mycase-mcp/.env`.
+    - `mycase-mcp-setup` stores them in the OS keyring. The `.env` file (mode 0600) is
+      used only when no keyring is available or `MYCASE_MCP_USE_KEYRING=0`.
+    - OAuth tokens are stored separately at `~/.mycase-mcp/tokens.json` (mode 600) and
+      refreshed automatically.
+
+    ## Transport
+    - stdio is the default.
+    - Opt-in stateless Streamable HTTP (`MYCASE_MCP_TRANSPORT=streamable-http`, endpoint
+      `/mcp`) has no authentication and no TLS. Anyone who can reach the port can run
+      every tool, including write and delete tools, with this server's MyCase credentials.
+    - Keep the default loopback bind (`127.0.0.1`), or put the server behind an
+      authenticating TLS proxy on a private network.
+    - `MYCASE_MCP_ALLOWED_HOSTS` and `MYCASE_MCP_ALLOWED_ORIGINS` protect against browser
+      DNS rebinding, not against direct callers. A non-loopback `MYCASE_MCP_HOST` requires
+      `MYCASE_MCP_ALLOWED_HOSTS`.
+
+    ## Webhook destinations
+    - Tools that submit a URL accept only hosts listed in `MYCASE_ALLOWED_DESTINATION_HOSTS`.
+      With it unset, webhook registration is refused.
 
     ## Tool classification
     - **Read-only (safe):** who_am_i, get_firm, list_staff, get_staff_member, list_cases,
