@@ -9,6 +9,7 @@ import time
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
+from threading import Lock
 from urllib.parse import quote
 
 import requests
@@ -23,6 +24,10 @@ BASE_URL = "https://external-integrations.mycase.com/v1"
 AUTH_URL = "https://auth.mycase.com/login_sessions/new"
 TOKEN_URL = "https://auth.mycase.com/tokens"
 CONFIG_DIR = Path.home() / ".mycase-mcp"
+
+# HTTP tools run in worker threads with separate TokenManager instances sharing
+# one token file. Serialize rotation so concurrent 401s refresh the vendor once.
+_TOKEN_REFRESH_LOCK = Lock()
 
 # Resolve credentials through the pluggable store (OS keyring -> .env file).
 credentials.load_into_environ(["MYCASE_CLIENT_ID", "MYCASE_CLIENT_SECRET"])
@@ -207,6 +212,16 @@ class TokenManager:
         return self.tokens.get("refresh_token", "")
 
     def refresh(self):
+        # Serialize rotation and reuse tokens another request has already saved.
+        with _TOKEN_REFRESH_LOCK:
+            if getattr(self, "token_file", None) is not None:
+                latest = self._load()
+                if latest != self.tokens and latest.get("access_token"):
+                    self.tokens = latest
+                    return latest
+            return self._refresh()
+
+    def _refresh(self):
         if not self.refresh_token:
             raise ReauthorizationRequiredError()
         if not CLIENT_ID or not CLIENT_SECRET:

@@ -444,3 +444,84 @@ def test_lifespan_runs_once_per_app_not_per_request_in_stateless_mode(
     assert [response.status_code for response in responses] == [200, 200, 200]
     assert starts.count("enter") == 1
     assert starts == ["enter", "exit"]
+
+
+def test_empty_transport_selects_stdio(monkeypatch) -> None:
+    monkeypatch.setenv("MYCASE_MCP_TRANSPORT", "")
+    assert server._requested_transport() == "stdio"
+    monkeypatch.setenv("MYCASE_MCP_TRANSPORT", "   ")
+    assert server._requested_transport() == "stdio"
+
+
+def test_empty_host_yields_loopback(monkeypatch) -> None:
+    monkeypatch.setenv("MYCASE_MCP_HOST", "")
+    assert server._host() == "127.0.0.1"
+    monkeypatch.setenv("MYCASE_MCP_HOST", "   ")
+    assert server._host() == "127.0.0.1"
+
+
+def test_uppercase_localhost_is_non_loopback(monkeypatch) -> None:
+    _clear_transport_env(monkeypatch)
+    monkeypatch.setenv("MYCASE_MCP_HOST", "LOCALHOST")
+    assert server._host() == "LOCALHOST"
+    with pytest.raises(SystemExit) as excinfo:
+        server.create_serve_app()
+    assert "MYCASE_MCP_ALLOWED_HOSTS" in str(excinfo.value)
+
+
+def test_server_import_survives_missing_distribution(monkeypatch) -> None:
+    import importlib
+    import importlib.metadata
+
+    def missing(name: str):
+        raise importlib.metadata.PackageNotFoundError(name)
+
+    monkeypatch.setattr(importlib.metadata, "version", missing)
+    reloaded = importlib.reload(server)
+    assert reloaded.mcp is not None
+
+
+def test_concurrent_refresh_calls_vendor_once(monkeypatch, tmp_path) -> None:
+    import threading
+    import time
+
+    monkeypatch.setattr(client, "CONFIG_DIR", tmp_path)
+    monkeypatch.setattr(client, "CLIENT_ID", "fake-client")
+    monkeypatch.setattr(client, "CLIENT_SECRET", "fake-secret")
+    seed = {"access_token": "old-access", "refresh_token": "shared-refresh"}
+    (tmp_path / "tokens.json").write_text(json.dumps(seed))
+    calls: list[str] = []
+
+    def fake_post(*args: Any, **kwargs: Any):
+        time.sleep(0.2)
+        calls.append("refresh")
+        return SimpleNamespace(
+            status_code=200,
+            headers={},
+            json=lambda: {
+                "access_token": "new-access",
+                "refresh_token": "shared-refresh",
+            },
+        )
+
+    monkeypatch.setattr(requests, "post", fake_post)
+    first = client.TokenManager()
+    second = client.TokenManager()
+    results: list[dict[str, Any]] = []
+
+    def run(manager: Any) -> None:
+        results.append(manager.refresh())
+
+    workers = [
+        threading.Thread(target=run, args=(manager,)) for manager in (first, second)
+    ]
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join(timeout=30)
+    assert all(not worker.is_alive() for worker in workers)
+    assert len(calls) == 1
+    assert [result["access_token"] for result in results] == [
+        "new-access",
+        "new-access",
+    ]
