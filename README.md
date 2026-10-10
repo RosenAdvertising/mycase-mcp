@@ -21,7 +21,7 @@ MCP server for [MyCase](https://www.mycase.com/) — gives Claude full access to
 ## Requirements
 
 - Python 3.10+
-- Python MCP SDK >=2.2,<3 (MCP protocol revision: 2026-07-28)
+- Python MCP SDK >=2.3,<3 (MCP protocol revision: 2026-07-28)
 - A MyCase developer app (see setup below)
 - Claude Desktop or any MCP-compatible client
 
@@ -72,6 +72,34 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 ```
 
 Restart Claude Desktop after saving the config.
+
+## HTTP mode
+
+To serve stateless Streamable HTTP, set `MYCASE_MCP_TRANSPORT=streamable-http`.
+The MCP endpoint is `http://127.0.0.1:8080/mcp` by default. It supports MCP
+2026-07-28 and the SDK's earlier protocol versions on the same `/mcp` endpoint.
+Stdio remains the default transport.
+
+| Environment variable | Default | Purpose |
+| --- | --- | --- |
+| `MYCASE_MCP_TRANSPORT` | `stdio` | Choose `stdio` or `streamable-http`. |
+| `MYCASE_MCP_HOST` | `127.0.0.1` | HTTP bind host. |
+| `PORT` | `8080` | HTTP bind port; must be an integer. |
+| `MYCASE_MCP_ALLOWED_HOSTS` | Empty | Comma-separated accepted Host headers; required for non-loopback bind hosts. Include the port, or use `hostname:*` for any port. |
+| `MYCASE_MCP_ALLOWED_ORIGINS` | Empty | Comma-separated accepted Origins, such as `https://mcp.example.com`; on non-loopback hosts, requests with an Origin must match this list. |
+| `MYCASE_CLIENT_ID` | Existing credential store | MyCase OAuth client ID, using the same credential resolution as stdio. |
+| `MYCASE_CLIENT_SECRET` | Existing credential store | MyCase OAuth client secret, using the same credential resolution as stdio. |
+| `MYCASE_MCP_USE_KEYRING` | `1` | Set to `0` to use process environment and the existing credential file fallback. |
+| `MYCASE_ALLOWED_DESTINATION_HOSTS` | Empty | Existing comma-separated vendor destination hostname allowlist for tools that submit URLs. |
+
+Use the credentials and OAuth tokens established by `mycase-mcp-setup`; HTTP
+requests use this same server account. Credentials are never taken from requests.
+Loopback binds use the SDK's built-in Host and Origin validation. Other bind
+hosts require the explicit allowlists above.
+
+```bash
+MYCASE_MCP_TRANSPORT=streamable-http MYCASE_MCP_HOST=127.0.0.1 PORT=8080 mycase-mcp
+```
 
 ## Troubleshooting
 

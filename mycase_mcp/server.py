@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """MyCase MCP Server — full MyCase API coverage via the MCP Python SDK."""
 
+import asyncio
 import json
 import logging
+import os
 from typing import Annotated
 
 import requests
@@ -14,10 +16,13 @@ from mcp.server.mcpserver.exceptions import (
     UnexpectedResourceError,
     UnexpectedToolError,
 )
+from mcp.server.transport_security import TransportSecuritySettings
 from mcp.shared.exceptions import MCPError
 from mcp.types import CallToolResult, TextContent
 from pydantic import BeforeValidator, Field, ValidationError
+from starlette.applications import Starlette
 
+from . import __version__
 from .client import (
     AccessDeniedError,
     ArgumentValidationError,
@@ -156,7 +161,8 @@ def _result(message: str) -> CallToolResult:
 
 mcp = SafeMCPServer(
     "mycase-mcp",
-    version="0.2.0",
+    title="MyCase Practice Management",
+    version=__version__,
     instructions="Full access to MyCase practice management: cases, clients, companies, tasks, calendar, time entries, invoices, notes, documents, leads, messaging, and more.",
 )
 
@@ -1540,5 +1546,83 @@ def billing_cycle_review() -> str:
 # ── Entry points ──────────────────────────────────────────────────────────────
 
 
+# ── HTTP serving ──────────────────────────────────────────────────────────────
+
+
+STREAMABLE_HTTP_TRANSPORT = "streamable-http"
+_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+
+
+def _requested_transport() -> str:
+    return os.environ.get("MYCASE_MCP_TRANSPORT", "stdio").strip().lower() or "stdio"
+
+
+def _host() -> str:
+    return os.environ.get("MYCASE_MCP_HOST", "127.0.0.1").strip() or "127.0.0.1"
+
+
+def _port() -> int:
+    raw = os.environ.get("PORT", "8080").strip()
+    try:
+        return int(raw)
+    except ValueError as exc:
+        raise SystemExit(f"PORT must be an integer, got {raw!r}.") from exc
+
+
+def _transport_security() -> TransportSecuritySettings | None:
+    host = _host()
+    if host in _LOOPBACK_HOSTS:
+        # The SDK enables Host/Origin validation itself on loopback hosts.
+        return None
+    raw_hosts = os.environ.get("MYCASE_MCP_ALLOWED_HOSTS", "")
+    allowed_hosts = [item.strip() for item in raw_hosts.split(",") if item.strip()]
+    if not allowed_hosts:
+        raise SystemExit(
+            f"MYCASE_MCP_TRANSPORT=streamable-http on host {host!r} requires "
+            "MYCASE_MCP_ALLOWED_HOSTS with the comma-separated Host header "
+            "values this server may be reached on."
+        )
+    raw_origins = os.environ.get("MYCASE_MCP_ALLOWED_ORIGINS", "").strip()
+    return TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=allowed_hosts,
+        allowed_origins=[
+            item.strip() for item in raw_origins.split(",") if item.strip()
+        ],
+    )
+
+
+def create_serve_app() -> Starlette:
+    """Build the stateless Streamable HTTP app; uvicorn owns the process."""
+    return mcp.streamable_http_app(
+        streamable_http_path="/mcp",
+        host=_host(),
+        stateless_http=True,
+        transport_security=_transport_security(),
+    )
+
+
+async def _serve_streamable_http() -> None:
+    import uvicorn
+
+    config = uvicorn.Config(
+        create_serve_app(),
+        host=_host(),
+        port=_port(),
+        access_log=False,
+    )
+    await uvicorn.Server(config).serve()
+
+
 def main():
-    mcp.run()
+    transport = _requested_transport()
+    if transport == "stdio":
+        mcp.run()
+        return
+    if transport == STREAMABLE_HTTP_TRANSPORT:
+        asyncio.run(_serve_streamable_http())
+        return
+    raise SystemExit(
+        f"Unsupported MYCASE_MCP_TRANSPORT {transport!r}; "
+        f"expected 'stdio' or '{STREAMABLE_HTTP_TRANSPORT}'."
+    )
