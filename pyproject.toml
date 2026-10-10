@@ -5,11 +5,22 @@ build-backend = "hatchling.build"
 [project]
 name = "mycase-mcp"
 version = "0.2.0"
-description = "MCP server for MyCase API — full coverage for law firm practice management"
+description = "MCP server for MyCase: cases, clients, tasks, billing and documents."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 keywords = ["mycase", "mcp", "legal", "law", "claude", "practice-management"]
+classifiers = [
+    "Intended Audience :: Legal Industry",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business",
+]
 dependencies = [
     "mcp>=2.3,<3",
     "requests>=2.34.2",
@@ -29,8 +40,9 @@ mycase-mcp-setup = "mycase_mcp.cli:setup_main"
 mycase-mcp-verify = "mycase_mcp.cli:verify_main"
 
 [project.urls]
-Homepage = "https://github.com/rosenadvertising/mycase-mcp"
-Issues = "https://github.com/rosenadvertising/mycase-mcp/issues"
+Homepage = "https://github.com/RosenAdvertising/mycase-mcp"
+Repository = "https://github.com/RosenAdvertising/mycase-mcp"
+Issues = "https://github.com/RosenAdvertising/mycase-mcp/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["mycase_mcp"]
